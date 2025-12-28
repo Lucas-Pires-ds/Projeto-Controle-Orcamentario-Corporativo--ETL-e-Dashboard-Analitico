@@ -15,7 +15,7 @@ Fiz um script python para gerar uma base de dados o mais próximo da realidade p
 - Erros propositais nos dados como espaços extras desnecessários, dados faltantes, chaves estrangeiras que não batem com chaves primárias, etc.
 
 **- Arquiterura:**
-Arquitetura: Optei pelo padrão de camadas (Staging e Trusted) para garantir que o processo de ETL seja rastreável e que erros de importação não interrompam o fluxo de carga.
+Optei pelo padrão de camadas (Staging e Trusted) para garantir que o processo de ETL seja rastreável e que erros de importação não interrompam o fluxo de carga.
 
 **- Resolução de problemas:**
 - Encontrei erros de 'Objeto não encontrado' durante a ingestão. Solucionei implementando scripts de criação condicional (IF NOT EXISTS) para garantir que a estrutura de Staging esteja pronta antes do BULK INSERT.
