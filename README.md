@@ -38,4 +38,4 @@ O projeto segue o padrão de medalhão simplificado, utilizando camadas para gar
 - [ ] Criação de Dashboard interativo.
 
 ---
-*Este é um projeto de portfólio para demonstrar habilidades em Engenharia e Análise de Dados.*
+*Este é um projeto de portfólio para demonstrar habilidades em Análise de Dados.*
