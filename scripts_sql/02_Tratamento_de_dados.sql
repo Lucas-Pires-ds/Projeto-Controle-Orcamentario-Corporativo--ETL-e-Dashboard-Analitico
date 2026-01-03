@@ -1,5 +1,8 @@
 
--- criando as tabelas 
+-------------------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------- CRIAÇÃO DE TABELAS --------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------
+GO
 
 CREATE TABLE dim_camp_marketing(
        id_camp INT,
@@ -31,9 +34,28 @@ CREATE TABLE dim_fornecedores(
        CONSTRAINT dim_fornecedores_id_forn_pk PRIMARY KEY(id_forn)
 )
 GO
--- usando view para tratar os dados enquanto observo se os tratamentos dão certo antes de insertar na tabela trusted
 
+-------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------- VERIFICAÇÃO DE TRATAMENTOS NECESSÁRIOS --------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+-- dim_fornecedores
+SELECT
+       id_forn,
+       LEN(id_forn) - LEN(TRIM(id_forn)) AS 'Dif ID',
+       CASE WHEN LEN(id_forn) - LEN(TRIM(id_forn)) > 0 THEN 'Sim' ELSE 'Não' END AS 'Necessário TRIM?',
+       nome_forn,
+       LEN(nome_forn) - LEN(TRIM(nome_forn)) AS 'Dif nome_Norn',
+       CASE WHEN LEN(nome_forn) - LEN(TRIM(nome_forn)) > 0 THEN 'Sim' ELSE 'Não' END AS 'Necessário TRIM?'
+FROM stg_dim_fornecedores
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------TRANSFORMAÇÃO, LIMPEZA E CRIAÇÃO DE VIEWS -----------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------
+GO
 -- dim_camp_marketing
+
 CREATE OR ALTER VIEW vw_campanhas AS 
        SELECT
               CAST(id_camp AS INT) AS 'ID_camp',
@@ -42,7 +64,9 @@ CREATE OR ALTER VIEW vw_campanhas AS
        FROM stg_dim_campanha
 
 GO
+
 -- dim_centro_custo
+
 CREATE OR ALTER VIEW vw_centro_custo AS
        SELECT
               CAST(id_cc AS INT) AS 'id_cc',
@@ -51,7 +75,9 @@ CREATE OR ALTER VIEW vw_centro_custo AS
 
 
 GO
+
 -- dim_categoria
+
 CREATE OR ALTER VIEW vw_categoria AS 
        SELECT
               CAST(TRIM(REPLACE(id_cat, '.0', '')) AS INT) AS 'id_cat',
@@ -61,7 +87,9 @@ CREATE OR ALTER VIEW vw_categoria AS
        FROM stg_dim_categoria
        WHERE id_cat IS NOT NULL
 GO
+
 -- dim_fornecedores
+
 
 CREATE OR ALTER VIEW vw_fornecedores AS
        SELECT
@@ -70,7 +98,10 @@ CREATE OR ALTER VIEW vw_fornecedores AS
        FROM
               stg_dim_fornecedores
 GO
--- verificando o tratamento deu certo
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------- VERIFICAÇÃO DE QUALIDADE DAS VIEWS -----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------
 
 SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'vw_campanhas'
 
@@ -80,8 +111,9 @@ SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'vw_categoria'
 
 SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'vw_fornecedores'
 
--- inserindo dados na tabela trusted dim_camp_marketing
-
+-------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------- CARGA DE DADOS --------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------
 INSERT INTO dim_camp_marketing
 SELECT * FROM vw_campanhas
 
@@ -93,18 +125,24 @@ SELECT * FROM vw_categoria
 
 INSERT INTO dim_fornecedores
 SELECT * FROM vw_fornecedores
+-------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------- AUDITORIA FINAL -------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------
+SELECT 'dim_camp_marketing' AS Tabela, COUNT(*) AS Total_Registros FROM dim_camp_marketing
+UNION ALL
+SELECT 'dim_centro_custo' AS Tabela, COUNT(*) AS Total_Registros FROM dim_centro_custo
+UNION ALL
+SELECT 'dim_categoria' AS Tabela, COUNT(*) AS Total_Registros FROM dim_categoria
+UNION ALL
+SELECT 'dim_fornecedores' AS Tabela, COUNT(*) AS Total_Registros FROM dim_fornecedores
 
--- verificando se a tabela de fornecedores precisa de tratamento TRIM
-SELECT
-       id_forn,
-       LEN(id_forn) - LEN(TRIM(id_forn)) AS 'Dif ID',
-       CASE WHEN LEN(id_forn) - LEN(TRIM(id_forn)) > 0 THEN 'Sim' ELSE 'Não' END AS 'Necessário TRIM?',
-       nome_forn,
-       LEN(nome_forn) - LEN(TRIM(nome_forn)) AS 'Dif nome_Norn',
-       CASE WHEN LEN(nome_forn) - LEN(TRIM(nome_forn)) > 0 THEN 'Sim' ELSE 'Não' END AS 'Necessário TRIM?'
-FROM stg_dim_fornecedores
 
--- Não foi necessário nenhum tratamento na tabela de fornecedores
+
+
+
+
+
+
 
 
 
