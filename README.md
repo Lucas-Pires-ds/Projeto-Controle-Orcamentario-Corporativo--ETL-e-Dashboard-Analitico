@@ -8,7 +8,7 @@ Este projeto é focado em análise de dados financeiros, mas com um diferencial:
 ## 🏗️ Arquitetura do Pipeline
 Desenhei o projeto em camadas para separar bem as responsabilidades e garantir que o processo seja rastreável:
 
-1.  **Staging Layer (`stg_`)**: Onde os dados aterrissam "como estão". É aqui que identifico ruídos, nulos e erros de preenchimento que gerei propositalmente via Python para simular um cenário real.
+1.  **Staging  (raw)**: Onde os dados aterrissam "como estão". É aqui que identifico ruídos, nulos e erros de preenchimento que gerei propositalmente via Python para simular um cenário real.
 2.  **Diagnóstico de Qualidade (Data Quality)**: Antes de carregar qualquer dado definitivo, rodo scripts de auditoria via SQL para validar se o dado está saudável.
 3.  **Trusted Layer (Dimensões e Fatos)**: É a camada final. Aqui o dado já está limpo, tipado e com todas as chaves batendo. É a única "fonte da verdade" do projeto.
 
