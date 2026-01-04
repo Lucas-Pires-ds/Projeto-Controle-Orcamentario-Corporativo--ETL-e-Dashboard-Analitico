@@ -27,6 +27,8 @@ Este projeto resolve esses problemas ao estruturar um pipeline que:
 
 ## 🏗️ Arquitetura de Dados
 
+![Arquitetura do Pipeline de Dados](docs_e_imagens/diagrama_pipeline_de_dados.png)
+
 Foi adotado o padrão Medallion Architecture, separando claramente as responsabilidades de cada camada:
 
 ### 🥉 Camada Bronze (stg_)
