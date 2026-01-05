@@ -7,8 +7,6 @@ O foco principal não é apenas gerar dashboards, mas **demonstrar pensamento de
 
 O projeto foi desenvolvido com **SQL Server**, **Python** e **Power BI**, adotando boas práticas de arquitetura e ETL utilizadas no mercado.
 
-> **Status do projeto:** em desenvolvimento contínuo, com evolução progressiva das camadas Silver e Gold e das análises no Power BI.
-
 > 🔎 **Como ler este README**
 > - Para uma visão rápida: leia **Visão Geral**, **Arquitetura** e **Stack**
 > - Caso tenha interesse nas decisões técnicas e nos porquês por trás do código, vale olhar **Framework de Qualidade de Dados** e **Decisões Técnicas de ETL**.
@@ -242,6 +240,8 @@ Ao longo do projeto, são explorados principalmente:
 * Evoluir a camada Gold
 
 * Publicar dashboards finais
+
+> **Status do projeto:** em desenvolvimento contínuo, com evolução progressiva das camadas Silver e Gold e das análises no Power BI.
 
 📬 Fique à vontade para explorar o repositório e entrar em contato para feedbacks ou sugestões.
 
