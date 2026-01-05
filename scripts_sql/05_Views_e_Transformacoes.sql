@@ -46,6 +46,29 @@ CREATE OR ALTER VIEW vw_fornecedores AS
               stg_dim_fornecedores
 GO
 
+-- fact_lancamentos
+CREATE OR ALTER VIEW vw_lancamentos AS 
+SELECT  
+       CAST(id_lancamento AS INT) AS 'id_lancamento',
+       CAST(CAST(data_lancamento AS DATE) AS DATETIME) AS 'data_lancamento',
+       CAST(CASE WHEN
+               id_centro_custo NOT IN (SELECT id_cc FROM dim_centro_custo)
+                THEN -1 ELSE id_centro_custo END AS INT) AS 'id_cc',
+       CAST(id_categoria AS INT) AS 'id_categoria',
+       CAST(id_fornecedor AS INT) AS 'id_fornecedor',
+       CAST(CAST(id_campanha_marketing AS FLOAT) AS INT) AS 'id_campanha',
+       ABS(CAST(valor_lancamento AS DECIMAL(16,2))) AS 'valor_absoluto',
+       CAST(valor_lancamento AS DECIMAL(16,2)) AS 'valor_original',
+       CASE 
+              WHEN status_pagamento IN ('PAGO', 'Paga', 'Pago') THEN 'Pago'
+              WHEN status_pagamento IN ('Pending', 'Aberto') THEN 'Aberto'
+              ELSE 'Outros'
+       END AS 'status_pagamento'
+FROM
+       stg_lancamentos
+WHERE data_lancamento IS NOT NULL
+
+GO
 -------------------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------- VERIFICAÇÃO DA TIPAGEM DE DADOS DAS VIEWS ----------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------------------
@@ -57,4 +80,5 @@ UNION ALL
 SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'vw_categoria'
 UNION ALL
 SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'vw_fornecedores'
-
+UNION ALL
+SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'fact_lancamentos'

@@ -40,7 +40,43 @@
 - **Carga Concluída:** Todas as dimensões foram povoadas na Silver seguindo a hierarquia de chaves estrangeiras.
 - **Relatório de Auditoria:** Usei `UNION ALL` no final para conferir a volumetria entre as camadas Bronze e Silver.
 
+---
+
+## [04/01/2026] Engenharia Analítica na Tabela Fato — Silver Layer
+### O que foi feito:
+- **Data Profiling aprofundado:** Realizei auditoria completa na tabela `stg_lancamentos` antes da carga na Silver, avaliando impacto financeiro real das inconsistências.
+- **Criação da tabela fato `fact_lancamentos`:** Implementação da camada Silver para dados transacionais financeiros.
+- **Centralização da lógica de limpeza:** Desenvolvimento da `vw_lancamentos` como camada única de transformação antes da persistência física.
+
+### Diagnóstico de Qualidade de Dados:
+- **Integridade Temporal:** Identificados 27 registros com data nula (~0,6% do montante financeiro).
+- **Integridade Referencial:** Detectados 65 registros (~1,3% do montante) com Centros de Custo inexistentes na dimensão.
+- **Anomalias de Sinal:** Identificados 51 lançamentos com valores negativos sem correspondência a estorno ou cancelamento.
+- **Inconsistência Semântica:** Duplicidade de status de pagamento causada por variações de case e gênero (ex: "Paga", "PAGO", "pago", "Pending").
+
+### Decisões técnicas:
+- **Descarte Estratégico Orientado a Impacto:**
+  - Registros sem data foram removidos por apresentarem alto risco analítico e baixo impacto financeiro (~0,6%).
+- **Membro Coringa (Default Member):**
+  - Criação do registro `-1 (NÃO IDENTIFICADO)` na `dim_centro_custo` para preservar ~1,3% da massa financeira sem violar integridade referencial.
+- **Redundância Defensiva de Dados Financeiros:**
+  - `valor`: valor tratado com `ABS()`, protegido por `CHECK CONSTRAINT (> 0)` para consumo analítico.
+  - `valor_original`: preservação do dado bruto para fins de auditoria e rastreabilidade.
+- **Normalização Semântica de Status:**
+  - Padronização dos status para apenas duas categorias: `Pago` e `Aberto`, utilizando `CASE WHEN` com `UPPER()` e `TRIM()`.
+
+### Implementação técnica:
+- **Tipagem Estrita:** Conversão de `VARCHAR` para `INT`, `DATETIME` e `DECIMAL(16,2)` na carga da Silver.
+- **Tratamento de IDs com Resíduos Decimais:** Uso de *double cast* (`CAST(CAST(col AS FLOAT) AS INT)`) para saneamento de chaves.
+- **Integridade Estrutural:** Implementação de `PRIMARY KEY` e `FOREIGN KEY` garantindo consistência entre Fato e Dimensões.
+
+### Status Final da fact_lancamentos:
+- **Carga Concluída com Sucesso**
+- **100% dos registros** respeitando regras de negócio e integridade referencial.
+- Dados prontos para consumo analítico no Power BI, mantendo rastreabilidade total.
+
 ### Próximos passos:
-- [ ] Iniciar o desafio das tabelas fato (`fato_lancamentos` e `fato_orcamento`).
-- [ ] Implementar validação de integridade referencial profunda entre Fatos e Dimensões.
-- [ ] Desenvolver a **Camada Gold** e o Dashboard no Power BI focado em KPIs de desvio orçamentário.
+- [ ] Executar a carga da tabela fato `fact_orcamentos` seguindo o mesmo framework de validação.
+- [ ] Implementar a `dim_calendario` para análises temporais avançadas.
+- [ ] Iniciar o desenvolvimento do Dashboard **Budget vs Actual** no Power BI.
+

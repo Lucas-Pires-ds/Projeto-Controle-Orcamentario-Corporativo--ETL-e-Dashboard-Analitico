@@ -32,3 +32,39 @@ CREATE TABLE dim_fornecedores(
        nome_forn VARCHAR(200),
        CONSTRAINT dim_fornecedores_id_forn_pk PRIMARY KEY(id_forn)
 )
+
+CREATE TABLE fact_lancamentos(
+       id_lancamento INT NOT NULL,
+       data_lancamento DATETIME NOT NULL,
+       id_centro_custo INT NOT NULL,
+       id_categoria INT NOT NULL,
+       id_fornecedor INT NOT NULL,
+       id_campanha INT,
+       valor DECIMAL(16,2) NOT NULL,
+       valor_original DECIMAL(16,2) NOT NULL,
+       status_pagamento VARCHAR(20) NOT NULL,
+       CONSTRAINT fact_lancamentos_id_lancamento_pk PRIMARY KEY(id_lancamento),
+       CONSTRAINT fact_lancamentos_data_lancamento_ck CHECK(data_lancamento <= GETDATE() AND data_lancamento > '1991-01-01'),
+       CONSTRAINT fact_lancamentos_id_centro_custo_fk FOREIGN KEY(id_centro_custo) REFERENCES dim_centro_custo(id_cc),
+       CONSTRAINT fact_lancamentos_id_categoria_fk FOREIGN KEY(id_categoria) REFERENCES dim_categoria(id_categoria),
+       CONSTRAINT fact_lancamentos_id_fornecedor_fk FOREIGN KEY(id_fornecedor) REFERENCES dim_fornecedores(id_forn),
+       CONSTRAINT fact_lancamentos_id_campanha_fk FOREIGN KEY(id_campanha) REFERENCES dim_camp_marketing(id_camp),
+       CONSTRAINT fact_lancamentos_valor_ck CHECK(valor > 0),
+       CONSTRAINT fact_lancamentos_status_pagamento_ck CHECK(status_pagamento in ('Pago', 'Aberto'))
+)
+
+CREATE TABLE fact_orcamento(
+       id_orcamento INT NOT NULL,
+       ano INT NOT NULL,
+       mes INT NOT NULL,
+       id_centro_custo INT NOT NULL,
+       id_categoria INT NOT NULL,
+       valor DECIMAL(16,2) NOT NULL,
+       CONSTRAINT fact_orcamento_id_orcamento_pk PRIMARY KEY(id_orcamento),
+       CONSTRAINT fact_orcamento_ano_ck CHECK(ano <= YEAR(GETDATE()) AND ano >= 2000),
+       CONSTRAINT fact_orcamento_mes_ck CHECK(mes >= 1 AND mes <= 12),
+       CONSTRAINT fact_orcamento_id_centro_custo_fk FOREIGN KEY(id_centro_custo) REFERENCES dim_centro_custo(id_cc),
+       CONSTRAINT fact_orcamento_id_categoria_fk FOREIGN KEY(id_categoria) REFERENCES dim_categoria(id_categoria),
+       CONSTRAINT fact_orcamento_valor_ck CHECK(valor > 0)
+)
+

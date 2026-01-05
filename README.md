@@ -30,6 +30,8 @@ Este projeto resolve esses problemas ao estruturar um pipeline que:
 
 ## 🏗️ Arquitetura de Dados
 
+![Arquitetura do Pipeline de Dados](docs_e_imagens/diagrama_pipeline_de_dados.png)
+
 Foi adotado o padrão Medallion Architecture, separando claramente as responsabilidades de cada camada:
 
 ### 🥉 Camada Bronze (stg_)
@@ -121,7 +123,67 @@ O modelo foi construído seguindo o padrão Star Schema, com foco em performance
 
 * **dim_fornecedores** — fornecedores envolvidos nos lançamentos
 
-Todas as tabelas possuem restrições explícitas de PK e FK.
+## 📄 Tabela Fato — fact_lancamentos (Silver Layer)
+
+A tabela fact_lancamentos representa os lançamentos financeiros efetivos e passou por um processo rigoroso de diagnóstico e saneamento antes da carga definitiva.
+
+### Diagnóstico de Qualidade de Dados (Pré-Carga)
+
+Durante o Data Profiling na tabela stg_lancamentos, foram identificados os seguintes pontos críticos:
+
+- **Integridade Temporal**
+  - 27 registros com data nula (~0,6% do montante financeiro)
+
+- **Integridade Referencial**
+  - 65 registros (~1,3%) com Centros de Custo inexistentes na dimensão
+
+- **Anomalias de Sinal**
+  - Lançamentos com valores negativos sem correlação com estorno ou cancelamento
+
+- **Inconsistência Semântica**
+  - Status de pagamento duplicados por variação de case e gênero
+  - Exemplos: "Paga", "PAGO", "pago", "Pending"
+
+---
+
+### Decisões de Engenharia e Regras de Negócio
+
+Para garantir confiabilidade analítica sem perda relevante de informação, foram aplicadas as seguintes estratégias:
+
+- **Descarte Estratégico**
+  - Registros sem data foram removidos devido ao alto risco analítico e baixo impacto financeiro (~0,6%)
+
+- **Membro Coringa (Default Member)**
+  - Criação do registro `-1 (NÃO IDENTIFICADO)` na `dim_centro_custo`
+  - Permite preservar ~1,3% da massa financeira sem violar integridade referencial
+
+- **Redundância Defensiva de Valores**
+  - `valor`: valor absoluto tratado com `ABS()`, protegido por `CHECK CONSTRAINT (> 0)`
+  - `valor_original`: preservação do dado bruto para auditoria e rastreabilidade
+
+- **Normalização Semântica**
+  - Padronização dos status de pagamento para apenas:
+    - `Pago`
+    - `Aberto`
+  - Implementada via `CASE WHEN` com `UPPER()` e `TRIM()`
+
+---
+
+### Implementação Técnica
+
+- Transformações centralizadas na `vw_lancamentos`
+- Conversão de tipos:
+  - `INT` para IDs
+  - `DATETIME` para datas
+  - `DECIMAL(16,2)` para valores
+- Tratamento de IDs com resíduos decimais:
+  - `CAST(CAST(col AS FLOAT) AS INT)`
+
+### Status Final da fact_lancamentos
+
+- **Primary Key:** definida sobre `id_lancamento`
+- **Foreign Keys:** garantem vínculo com dimensões válidas ou membro coringa
+- **Qualidade:** 100% dos registros respeitam regras de negócio e integridade referencial
 
 ## 📦 Auditoria Final da Carga
 
@@ -170,7 +232,7 @@ A iniciativa reflete um processo contínuo de desenvolvimento técnico e aprofun
 
 ## 📎 Próximos Passos
 
-* Implementar o pipeline ETL nas tabelas fato fact_lancamentos e fact_orcamentos
+* Implementar o pipeline ETL da tabela fato fact_orcamentos
 
 * Evoluir a camada Gold
 
