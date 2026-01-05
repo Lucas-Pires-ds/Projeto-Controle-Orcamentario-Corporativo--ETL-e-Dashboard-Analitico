@@ -68,5 +68,3 @@ CREATE TABLE fact_orcamento(
        CONSTRAINT fact_orcamento_valor_ck CHECK(valor > 0)
 )
 
-DROP TABLE fact_lancamentos
-
