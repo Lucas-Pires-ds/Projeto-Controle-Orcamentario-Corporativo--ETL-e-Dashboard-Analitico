@@ -41,6 +41,7 @@ CREATE TABLE fact_lancamentos(
        id_fornecedor INT NOT NULL,
        id_campanha INT,
        valor DECIMAL(16,2) NOT NULL,
+       valor_original DECIMAL(16,2) NOT NULL,
        status_pagamento VARCHAR(20) NOT NULL,
        CONSTRAINT fact_lancamentos_id_lancamento_pk PRIMARY KEY(id_lancamento),
        CONSTRAINT fact_lancamentos_data_lancamento_ck CHECK(data_lancamento <= GETDATE() AND data_lancamento > '1991-01-01'),
@@ -66,4 +67,6 @@ CREATE TABLE fact_orcamento(
        CONSTRAINT fact_orcamento_id_categoria_fk FOREIGN KEY(id_categoria) REFERENCES dim_categoria(id_categoria),
        CONSTRAINT fact_orcamento_valor_ck CHECK(valor > 0)
 )
+
+DROP TABLE fact_lancamentos
 
