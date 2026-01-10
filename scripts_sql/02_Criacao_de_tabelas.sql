@@ -32,6 +32,7 @@ CREATE TABLE dim_fornecedores(
        nome_forn VARCHAR(200),
        CONSTRAINT dim_fornecedores_id_forn_pk PRIMARY KEY(id_forn)
 )
+GO
 
 CREATE TABLE fact_lancamentos(
        id_lancamento INT NOT NULL,
@@ -52,6 +53,7 @@ CREATE TABLE fact_lancamentos(
        CONSTRAINT fact_lancamentos_valor_ck CHECK(valor > 0),
        CONSTRAINT fact_lancamentos_status_pagamento_ck CHECK(status_pagamento in ('Pago', 'Aberto'))
 )
+GO
 
 CREATE TABLE fact_orcamento(
        id_orcamento INT NOT NULL,
@@ -60,11 +62,13 @@ CREATE TABLE fact_orcamento(
        id_centro_custo INT NOT NULL,
        id_categoria INT NOT NULL,
        valor DECIMAL(16,2) NOT NULL,
+       status_dado VARCHAR(50) NOT NULL
        CONSTRAINT fact_orcamento_id_orcamento_pk PRIMARY KEY(id_orcamento),
        CONSTRAINT fact_orcamento_ano_ck CHECK(ano <= YEAR(GETDATE()) AND ano >= 2000),
        CONSTRAINT fact_orcamento_mes_ck CHECK(mes >= 1 AND mes <= 12),
        CONSTRAINT fact_orcamento_id_centro_custo_fk FOREIGN KEY(id_centro_custo) REFERENCES dim_centro_custo(id_cc),
        CONSTRAINT fact_orcamento_id_categoria_fk FOREIGN KEY(id_categoria) REFERENCES dim_categoria(id_categoria),
-       CONSTRAINT fact_orcamento_valor_ck CHECK(valor > 0)
+       CONSTRAINT fact_orcamento_valor_ck CHECK(valor > 0),
+       CONSTRAINT fact_orcamento_status_dado_ck CHECK(status_dado in ('Dado suspeito', 'Dado confiavel'))
 )
 

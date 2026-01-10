@@ -67,6 +67,25 @@ SELECT
 FROM 
     vw_lancamentos
 
+INSERT INTO fact_orcamento(
+    id_orcamento,
+    ano,
+    mes,
+    id_centro_custo,
+    id_categoria,
+    valor,
+    status_dado
+)
+SELECT
+    id_orcamento,
+    ano,
+    mes,
+    id_centro_custo,
+    id_categoria,
+    valor_orcado,
+    status_dado
+FROM 
+    vw_orcamento
 
 -------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------- AUDITORIA FINAL -------------------------------------------------------------------------
@@ -80,3 +99,5 @@ UNION ALL
 SELECT 'dim_fornecedores' AS Tabela, COUNT(*) AS Total_Registros FROM dim_fornecedores
 UNION ALL
 SELECT 'fact_lancamentos' AS Tabela, COUNT(*) AS Total_Registros FROM fact_lancamentos
+UNION ALL
+SELECT 'fact_orcamento' AS Tabela, COUNT(*) AS Total_Registros FROM fact_orcamento

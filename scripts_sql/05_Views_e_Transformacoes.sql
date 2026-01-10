@@ -1,7 +1,7 @@
 -------------------------------------------------------------------------------------------------------------------------------------------------
 --------------------------------------------TRANSFORMAÇÃO, LIMPEZA E CRIAÇÃO DE VIEWS -----------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------------------
-GO
+
 -- dim_camp_marketing
 
 CREATE OR ALTER VIEW vw_campanhas AS 
@@ -13,6 +13,7 @@ CREATE OR ALTER VIEW vw_campanhas AS
 
 GO
 
+
 -- dim_centro_custo
 
 CREATE OR ALTER VIEW vw_centro_custo AS
@@ -21,8 +22,8 @@ CREATE OR ALTER VIEW vw_centro_custo AS
               UPPER(LEFT(TRIM(nome_cc),1))+LOWER(RIGHT(TRIM(nome_cc),LEN(TRIM(nome_cc))-1)) AS 'nome_cc'
        FROM stg_dim_centro_custo
 
-
 GO
+
 
 -- dim_categoria
 
@@ -35,8 +36,8 @@ CREATE OR ALTER VIEW vw_categoria AS
        WHERE id_cat IS NOT NULL AND id_cc IS NOT NULL
 GO
 
--- dim_fornecedores
 
+-- dim_fornecedores
 
 CREATE OR ALTER VIEW vw_fornecedores AS
        SELECT
@@ -46,7 +47,9 @@ CREATE OR ALTER VIEW vw_fornecedores AS
               stg_dim_fornecedores
 GO
 
+
 -- fact_lancamentos
+
 CREATE OR ALTER VIEW vw_lancamentos AS 
 SELECT  
        CAST(id_lancamento AS INT) AS 'id_lancamento',
@@ -69,6 +72,43 @@ FROM
 WHERE data_lancamento IS NOT NULL
 
 GO
+
+-- fact_orcamento
+
+CREATE OR ALTER VIEW vw_orcamento AS
+
+SELECT
+       CAST(id_orcamento AS INT) AS 'id_orcamento',
+       CAST(ano AS INT) AS 'ano',
+       CAST(mes AS INT) AS 'mes',
+       CAST(id_centro_custo AS INT) AS 'id_centro_custo',
+       CAST(id_categoria AS INT) AS 'id_categoria',
+       CAST(valor_orcado AS DECIMAL(18,2)) AS 'valor_orcado',
+       CASE
+              WHEN CAST(valor_orcado AS DECIMAL(18,2)) / AVG(CAST(valor_orcado AS DECIMAL(18,2))) 
+              OVER (PARTITION BY id_centro_custo, id_categoria) > 9 THEN 'Dado suspeito' ELSE 'Dado confiavel'
+       END AS 'status_dado'
+FROM 
+    stg_orcamento
+
+GO
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 -------------------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------- VERIFICAÇÃO DA TIPAGEM DE DADOS DAS VIEWS ----------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------------------
@@ -81,4 +121,6 @@ SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'vw_categoria'
 UNION ALL
 SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'vw_fornecedores'
 UNION ALL
-SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'fact_lancamentos'
+SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'vw_lancamentos'
+UNION ALL
+SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'vw_orcamento'
