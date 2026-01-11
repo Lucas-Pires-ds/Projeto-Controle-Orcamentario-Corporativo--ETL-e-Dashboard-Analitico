@@ -285,7 +285,7 @@ Ao longo do projeto, são explorados principalmente:
 
 * Publicar dashboards finais
 
-> **Status do projeto:** em desenvolvimento contínuo, com evolução progressiva das camadas Silver e Gold e das análises no Power BI.
+> **Status do projeto:** em desenvolvimento contínuo, com evolução progressiva da camada Gold e das análises no Power BI.
 
 📬 Fique à vontade para explorar o repositório e entrar em contato para feedbacks ou sugestões.
 
