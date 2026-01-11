@@ -49,7 +49,7 @@ Foi adotado o padrão Medallion Architecture, separando claramente as responsabi
 
 A decisão de manter dados não tipados nesta camada permite que a limpeza ocorra de forma controlada no SQL Server.
 
-### 🥈 Camada Silver (dim_)
+### 🥈 Camada Silver (dim_ e fact_)
 
 * Persistência física dos dados transformados e tipados
 
@@ -125,7 +125,7 @@ O modelo foi construído seguindo o padrão Star Schema, com foco em performance
 
 * **dim_fornecedores** — fornecedores envolvidos nos lançamentos
 
-## 📄 Tabela Fato — fact_lancamentos (Silver Layer)
+## 📄 Tabela Fato — fact_lancamentos (Silver)
 
 A tabela fact_lancamentos representa os lançamentos financeiros efetivos e passou por um processo rigoroso de diagnóstico e saneamento antes da carga definitiva.
 
@@ -201,15 +201,62 @@ Após o carregamento da Silver:
 
 ## 📊 Camada Gold e Análises
 
-A camada Gold é destinada ao consumo final no Power BI, utilizando:
+### — Análise Orçado vs Realizado
 
-* Tabelas fato de Lançamentos e Orçamento
+Nesta etapa, foi construída a camada analítica responsável por consolidar **orçamento planejado** e **execução real**, permitindo análises comparativas mensais por centro de custo e categoria.
 
-* Dimensões saneadas como filtros
+A consolidação cruza granularidades distintas:
+- Orçamento mensal (`fact_orcamento`)
+- Lançamentos financeiros diários (`fact_lancamentos`)
 
-* Métricas financeiras e orçamentárias
+Esse cruzamento é viabilizado por meio da `dim_calendario`, garantindo alinhamento temporal consistente.
 
-*(Dashboards em evolução)*
+### ⚙️ Regras Analíticas Implementadas
+
+A query de consolidação aplica regras explícitas de negócio:
+
+- **Orçado:** soma mensal do orçamento planejado
+- **Realizado:** soma dos lançamentos financeiros efetivos
+- **Saldo de Orçamento:** diferença entre orçado e realizado
+- **Percentual Consumido:** razão entre realizado e orçado
+- **Status do Orçamento:** classificação automática baseada no consumo
+
+Regras de status:
+
+- `Orçamento estourado` → realizado maior que o orçado
+- `Orçamento disponível` → realizado menor que o orçado
+- `Sem orçamento` → inexistência de planejamento para o período
+
+### 🧠 Tratamento de Cenários de Exceção
+
+Foram tratados explicitamente cenários comuns em ambientes reais:
+
+- Categorias com gasto realizado, mas sem orçamento definido
+- Períodos sem planejamento financeiro
+- Prevenção de divisão por zero no cálculo percentual
+- Uso de `COALESCE` para garantir consistência visual no consumo analítico
+
+Essas decisões evitam distorções no dashboard e tornam o modelo resiliente a falhas de planejamento.
+
+### 🔍 Validação Analítica
+
+A camada Gold foi validada por meio de queries de conferência, assegurando:
+
+- Consistência entre valores orçados e realizados
+- Correto agrupamento por ano, mês, centro de custo e categoria
+- Coerência dos status de orçamento gerados
+
+Com essas validações, a camada Gold consolida o modelo analítico final, pronta para consumo no Power BI.
+
+Nesta camada:
+- As tabelas fato de **Lançamentos** e **Orçamento** são integradas para análises comparativas (*Budget vs Actual*).
+- As dimensões saneadas da Silver garantem filtros confiáveis por centro de custo, categoria e tempo.
+- As métricas financeiras e orçamentárias já incorporam regras de negócio, exceções e validações aplicadas no SQL Server.
+
+O objetivo da camada Gold não é apenas visualização, mas **entregar métricas prontas para tomada de decisão**, reduzindo a necessidade de lógica complexa no Power BI.
+
+*(Dashboards em desenvolvimento contínuo)*
+
 
 ## 🛠️ Stack Utilizada
 
@@ -232,10 +279,7 @@ Ao longo do projeto, são explorados principalmente:
 - Cuidado e rigor com qualidade de dados
 - Transformação de dados brutos em informações prontas para análise 
 
-
 ## 📎 Próximos Passos
-
-* Implementar o pipeline ETL da tabela fato fact_orcamentos
 
 * Evoluir a camada Gold
 

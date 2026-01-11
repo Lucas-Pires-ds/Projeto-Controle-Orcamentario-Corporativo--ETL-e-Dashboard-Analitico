@@ -22,12 +22,12 @@
 
 ### Decisões técnicas:
 - **Metodologia de Diagnóstico Automático:**
-    - **Espaços Extras:** Substituí a análise visual pela lógica `LEN(col) > LEN(TRIM(col))`.
-    - **Padrão de IDs:** Tratei chaves em formato decimal (`101.0`) via conversão aninhada `CAST(CAST(col AS FLOAT) AS INT)`.
-    - **Auditoria de Unicidade:** Usei `GROUP BY` com `HAVING COUNT > 1` para validar as chaves primárias.
+  - **Espaços Extras:** Substituí a análise visual pela lógica `LEN(col) > LEN(TRIM(col))`.
+  - **Padrão de IDs:** Tratei chaves em formato decimal (`101.0`) via conversão aninhada `CAST(CAST(col AS FLOAT) AS INT)`.
+  - **Auditoria de Unicidade:** Usei `GROUP BY` com `HAVING COUNT > 1` para validar as chaves primárias.
 - **Saneamento Seletivo de Strings:**
-    - Implementei lógica autoral para o formato *Initcap*.
-    - **Exceções de Negócio:** Ajustei o código para ignorar siglas (RH, TI) e termos compostos (Limpeza/Conservação), mantendo a semântica original.
+  - Implementei lógica autoral para o formato *InitCap*.
+  - **Exceções de Negócio:** Ajustei o código para ignorar siglas (RH, TI) e termos compostos (Limpeza/Conservação), mantendo a semântica original.
 - **Investigação de Causa Raiz:** Detectei duplicidade na categoria "ALUGUEL/CONDOMÍNIO" causada por registros nulos, resolvendo com filtros de integridade na View.
 - **Integridade Referencial:** Validação via `NOT IN` para garantir que toda categoria esteja vinculada a um centro de custo existente.
 
@@ -44,39 +44,58 @@
 
 ## [04/01/2026] Engenharia Analítica na Tabela Fato — Silver Layer
 ### O que foi feito:
-- **Data Profiling aprofundado:** Realizei auditoria completa na tabela `stg_lancamentos` antes da carga na Silver, avaliando impacto financeiro real das inconsistências.
+- **Data Profiling aprofundado:** Auditoria completa na tabela `stg_lancamentos` antes da carga na Silver, avaliando impacto financeiro real das inconsistências.
 - **Criação da tabela fato `fact_lancamentos`:** Implementação da camada Silver para dados transacionais financeiros.
 - **Centralização da lógica de limpeza:** Desenvolvimento da `vw_lancamentos` como camada única de transformação antes da persistência física.
 
 ### Diagnóstico de Qualidade de Dados:
 - **Integridade Temporal:** Identificados 27 registros com data nula (~0,6% do montante financeiro).
 - **Integridade Referencial:** Detectados 65 registros (~1,3% do montante) com Centros de Custo inexistentes na dimensão.
-- **Anomalias de Sinal:** Identificados 51 lançamentos com valores negativos sem correspondência a estorno ou cancelamento.
+- **Anomalias de Sinal:** Identificados lançamentos com valores negativos sem correspondência a estorno ou cancelamento.
 - **Inconsistência Semântica:** Duplicidade de status de pagamento causada por variações de case e gênero (ex: "Paga", "PAGO", "pago", "Pending").
 
 ### Decisões técnicas:
 - **Descarte Estratégico Orientado a Impacto:**
   - Registros sem data foram removidos por apresentarem alto risco analítico e baixo impacto financeiro (~0,6%).
 - **Membro Coringa (Default Member):**
-  - Criação do registro `-1 (NÃO IDENTIFICADO)` na `dim_centro_custo` para preservar ~1,3% da massa financeira sem violar integridade referencial.
+  - Criação do registro `-1 (NÃO IDENTIFICADO)` na `dim_centro_custo` para preservar dados financeiros sem violar integridade referencial.
 - **Redundância Defensiva de Dados Financeiros:**
   - `valor`: valor tratado com `ABS()`, protegido por `CHECK CONSTRAINT (> 0)` para consumo analítico.
   - `valor_original`: preservação do dado bruto para fins de auditoria e rastreabilidade.
 - **Normalização Semântica de Status:**
   - Padronização dos status para apenas duas categorias: `Pago` e `Aberto`, utilizando `CASE WHEN` com `UPPER()` e `TRIM()`.
 
-### Implementação técnica:
-- **Tipagem Estrita:** Conversão de `VARCHAR` para `INT`, `DATETIME` e `DECIMAL(16,2)` na carga da Silver.
-- **Tratamento de IDs com Resíduos Decimais:** Uso de *double cast* (`CAST(CAST(col AS FLOAT) AS INT)`) para saneamento de chaves.
-- **Integridade Estrutural:** Implementação de `PRIMARY KEY` e `FOREIGN KEY` garantindo consistência entre Fato e Dimensões.
-
 ### Status Final da fact_lancamentos:
 - **Carga Concluída com Sucesso**
 - **100% dos registros** respeitando regras de negócio e integridade referencial.
-- Dados prontos para consumo analítico no Power BI, mantendo rastreabilidade total.
+- Dados prontos para consumo analítico no Power BI.
+
+---
+
+## [HOJE] Consolidação do Modelo Analítico e Camada Gold Inicial
+### O que foi feito:
+- **Correção de bug crítico de infraestrutura:** Resolução do erro `Msg 242 (Data out-of-range)` durante a carga de orçamentos.
+- **Refatoração da camada Silver de Orçamentos:** Otimização da lógica da `vw_orcamento` para maior escalabilidade e menor acoplamento manual.
+- **Criação da `dim_calendario`:** Desenvolvimento completo de uma dimensão de tempo robusta, com granularidade diária.
+- **Implementação da tabela fato `fact_orcamento`:** Estruturação do planejamento financeiro mensal com regras de integridade física.
+- **Consolidação da Camada Gold:** Desenvolvimento da query analítica de confronto **Orçado vs. Realizado**.
+
+### Decisões técnicas:
+- **Engenharia da Dimensão Calendário:**
+  - Geração de 731 dias via `WHILE`.
+  - Pareamento entre colunas de exibição (`mes_ano`, `trimestre_ano`) e colunas numéricas de ordenação (`ano_mes`, `ano_trimestre`).
+  - Flags de negócio: dia útil, bimestre, trimestre e semestre.
+- **Ancoragem Temporal do Orçamento:**
+  - Orçamentos mensais projetados para o último dia do mês (`EOMONTH`), permitindo join consistente com lançamentos diários.
+- **Join de Granularidades Diferentes:**
+  - Uso da `dim_calendario` como ponte entre `fact_lancamentos` (diária) e `fact_orcamento` (mensal).
+- **Tratamento de Exceções Analíticas:**
+  - Identificação explícita de gastos sem planejamento via `LEFT JOIN` + `COALESCE`.
+
+### Resultado:
+O projeto evoluiu de um pipeline de carga e saneamento para um **modelo dimensional completo**, capaz de responder perguntas reais de negócio sobre execução orçamentária, desvios e performance financeira.
 
 ### Próximos passos:
-- [ ] Executar a carga da tabela fato `fact_orcamentos` seguindo o mesmo framework de validação.
-- [ ] Implementar a `dim_calendario` para análises temporais avançadas.
-- [ ] Iniciar o desenvolvimento do Dashboard **Budget vs Actual** no Power BI.
+- [ ] Evoluir métricas da camada Gold
+- [ ] Construir o dashboard final no Power BI
 

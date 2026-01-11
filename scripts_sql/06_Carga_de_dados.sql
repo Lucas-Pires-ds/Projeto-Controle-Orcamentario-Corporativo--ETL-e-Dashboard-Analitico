@@ -56,55 +56,6 @@ FROM
     vw_fornecedores
 
 
--- fact_lancamentos
-
-INSERT INTO  fact_lancamentos(
-    id_lancamento, 
-    data_lancamento, 
-    id_centro_custo, 
-    id_categoria, 
-    id_fornecedor, 
-    id_campanha,
-    valor,
-    valor_original,
-    status_pagamento)
-SELECT
-    id_lancamento,
-    data_lancamento,
-    id_cc,
-    id_categoria,
-    id_fornecedor,
-    id_campanha,
-    valor_absoluto,
-    valor_original,
-    status_pagamento
-FROM 
-    vw_lancamentos
-
--- fact_orcamento
-
-INSERT INTO fact_orcamento(
-    id_orcamento,
-    data_orcamento,
-    ano,
-    mes,
-    id_centro_custo,
-    id_categoria,
-    valor,
-    status_dado
-)
-SELECT
-    id_orcamento,
-    [data],
-    ano,
-    mes,
-    id_centro_custo,
-    id_categoria,
-    valor_orcado,
-    status_dado
-FROM vw_orcamento
-
-
 -- dim_calendario
 
 DECLARE @DATA DATETIME 
@@ -172,6 +123,57 @@ END) AS INT)
 SET @DATA +=1
 END
 
+
+
+-- fact_lancamentos
+
+INSERT INTO  fact_lancamentos(
+    id_lancamento, 
+    data_lancamento, 
+    id_centro_custo, 
+    id_categoria, 
+    id_fornecedor, 
+    id_campanha,
+    valor,
+    valor_original,
+    status_pagamento)
+SELECT
+    id_lancamento,
+    data_lancamento,
+    id_cc,
+    id_categoria,
+    id_fornecedor,
+    id_campanha,
+    valor_absoluto,
+    valor_original,
+    status_pagamento
+FROM 
+    vw_lancamentos
+
+-- fact_orcamento
+
+INSERT INTO fact_orcamento(
+    id_orcamento,
+    data_orcamento,
+    ano,
+    mes,
+    id_centro_custo,
+    id_categoria,
+    valor,
+    status_dado
+)
+SELECT
+    id_orcamento,
+    [data],
+    ano,
+    mes,
+    id_centro_custo,
+    id_categoria,
+    valor_orcado,
+    status_dado
+FROM vw_orcamento
+
+
 -------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------- AUDITORIA FINAL -------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------------------
@@ -182,6 +184,8 @@ UNION ALL
 SELECT 'dim_categoria' AS Tabela, COUNT(*) AS Total_Registros FROM dim_categoria
 UNION ALL
 SELECT 'dim_fornecedores' AS Tabela, COUNT(*) AS Total_Registros FROM dim_fornecedores
+UNION ALL
+SELECT 'dim_calendario' AS Tabela, COUNT(*) AS Total_Registros FROM dim_calendario
 UNION ALL
 SELECT 'fact_lancamentos' AS Tabela, COUNT(*) AS Total_Registros FROM fact_lancamentos
 UNION ALL
