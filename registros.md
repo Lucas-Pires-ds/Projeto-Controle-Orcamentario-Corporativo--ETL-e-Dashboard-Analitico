@@ -72,7 +72,7 @@
 
 ---
 
-## [HOJE] Consolidação do Modelo Analítico e Camada Gold Inicial
+## [10/01/2026] Consolidação do Modelo Analítico e Camada Gold Inicial
 ### O que foi feito:
 - **Correção de bug crítico de infraestrutura:** Resolução do erro `Msg 242 (Data out-of-range)` durante a carga de orçamentos.
 - **Refatoração da camada Silver de Orçamentos:** Otimização da lógica da `vw_orcamento` para maior escalabilidade e menor acoplamento manual.
@@ -98,4 +98,49 @@ O projeto evoluiu de um pipeline de carga e saneamento para um **modelo dimensio
 ### Próximos passos:
 - [ ] Evoluir métricas da camada Gold
 - [ ] Construir o dashboard final no Power BI
+
+## [11/01/2026] Consolidação da Gold Mensal e Decisões Analíticas de Negócio
+
+### O que foi feito:
+- **Definição final da arquitetura da Camada Gold:** decisão explícita pela existência de **duas views Gold**:
+  - `vw_gold_mensal`: visão executiva e financeira (Orçado vs Realizado).
+  - `vw_gold_diaria` (a ser construída): acompanhamento intramês de consumo.
+- **Finalização da `vw_gold_mensal`:** consolidação mensal com métricas financeiras, percentuais, flags de negócio e acumulados YTD.
+- **Refino das métricas analíticas:** validação e ajuste de indicadores como desvio, percentual de atingimento e pesos relativos.
+- **Discussão e definição do tratamento de valores nulos para consumo no Power BI.**
+
+### Decisões técnicas:
+- **Tratamento consciente de NULL vs 0:**
+  - Decisão de **não converter ausência de orçamento em zero**, preservando `NULL` para evitar interpretações analíticas incorretas.
+  - Uso sistemático de `NULLIF` em divisões para evitar *divide by zero* e manter estabilidade do modelo.
+- **Separação semântica entre “Não orçado” e “Orçado = 0”:**
+  - Criação da flag `Flag_houve_orcamento` para distinguir ausência de planejamento de valores válidos.
+- **Cálculo de métricas percentuais:**
+  - Indicadores como `%_Atingimento` e `Percentual_desvio` retornam `NULL` quando não há orçamento, delegando a decisão visual ao Power BI.
+- **Pesos Analíticos (Share):**
+  - Implementação de `Peso_centro_custo` e `Peso_categoria` via Window Functions, sempre protegidas por `NULLIF` no denominador.
+- **Acumulados YTD:**
+  - Cálculo de Orçado, Realizado e Desvio acumulados por Ano, Centro de Custo e Categoria, respeitando ordenação temporal por mês.
+
+### Regras de negócio consolidadas na Gold Mensal:
+- **Orçado:** soma mensal do planejamento financeiro.
+- **Realizado:** soma mensal dos lançamentos financeiros.
+- **Desvio:** diferença entre realizado e orçado.
+- **Percentuais:** calculados apenas quando existe orçamento válido.
+- **Gastos sem orçamento:** mantidos no modelo com flags explícitas, sem mascaramento via `COALESCE`.
+
+### Postura analítica adotada:
+- Preferência por **dados semanticamente corretos** em vez de “dados bonitos”.
+- Decisão consciente de **empurrar parte da lógica interpretativa para a camada de visualização**, evitando sobrecarga indevida no SQL.
+- Código escrito com foco em **escalabilidade, legibilidade e defesa técnica** (junior consciente, não “SQL mágico”).
+
+### Status ao final do dia:
+- `vw_gold_mensal` **finalizada e validada**.
+- Arquitetura Gold definida e documentada conceitualmente.
+- Projeto pronto para evolução da **Gold Diária** e início do dashboard no Power BI.
+
+### Próximos passos:
+- [ ] Construção da `vw_gold_diaria` (consumo intramês)
+- [ ] Integração da Gold com Power BI
+- [ ] Revisão final do README com decisões arquiteturais consolidadas
 

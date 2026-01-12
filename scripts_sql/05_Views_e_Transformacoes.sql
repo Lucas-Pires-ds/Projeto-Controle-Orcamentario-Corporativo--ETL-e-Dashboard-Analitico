@@ -97,6 +97,119 @@ FROM
 GO
 
 
+-- CAMADA GOLD VIEW MENSAL (EXECUTIVA)
+
+CREATE OR ALTER VIEW vw_gold_mensal AS
+
+WITH T AS (
+SELECT
+       CAL.ano AS 'Ano',
+       CAL.mes AS 'Mes',
+       CC.id_cc AS 'ID_Centro_custo',
+       CC.nome_cc AS 'Centro_de_custo',
+       CAT.id_categoria AS 'ID_Categoria',
+       CAT.nome_categoria AS 'Categoria',
+       DF.id_forn AS 'ID_Fornecedor',
+       DF.nome_forn AS 'Fornecedor',
+       MKT.id_camp AS 'ID_Campanha',
+       MKT.nome_campanha AS 'Campanha',
+       SUM(FO.valor) AS 'Orcado',
+       SUM(FL.valor) AS 'Realizado',
+       SUM(FL.valor) - SUM(FO.valor) AS 'Valor_desvio',
+       (SUM(FL.valor) - NULLIF(SUM(FO.valor),0)) / NULLIF(SUM(FO.valor),0)  AS 'Percentual_desvio',
+       SUM(FL.valor) / NULLIF(SUM(FO.valor),0) AS '%_Atingimento',
+       FO.status_dado AS 'Status_dado_orcado',
+       CASE WHEN CC.id_cc = -1 THEN 'Sim' ELSE 'Nao' END AS 'Flag_centro_custo_coringa',
+       CASE WHEN SUM(FO.valor) IS NULL THEN 'Nao orcado' ELSE 'Orcado' END AS 'Flag_houve_orcamento'     
+FROM 
+       fact_lancamentos FL
+LEFT JOIN
+       dim_calendario CAL 
+              ON CAL.[data] = FL.data_lancamento
+LEFT JOIN 
+       dim_centro_custo CC
+              ON CC.id_cc = FL.id_centro_custo
+LEFT JOIN
+       dim_categoria CAT
+              ON CAT.id_categoria = FL.id_categoria
+LEFT JOIN fact_orcamento FO
+       ON FO.ano = CAL.ano
+      AND FO.mes = CAL.mes
+      AND FO.id_centro_custo = CC.id_cc
+      AND FO.id_categoria = CAT.id_categoria
+LEFT JOIN 
+       dim_camp_marketing MKT 
+              ON MKT.id_camp = FL.id_campanha
+LEFT JOIN dim_fornecedores DF
+       ON DF.id_forn = FL.id_fornecedor
+GROUP BY CAL.ANO, CAL.mes, CC.id_cc, CC.nome_cc, CAT.id_categoria, CAT.nome_categoria, DF.id_forn, DF.nome_forn, MKT.id_camp, MKT.nome_campanha, status_dado 
+)
+
+SELECT Ano,
+       Mes,
+       ID_Centro_custo,
+       Centro_de_custo,
+       ID_Categoria,
+       Categoria,
+       ID_Fornecedor,
+       Fornecedor,
+       COALESCE(CAST (ID_Campanha AS VARCHAR(50)), 'Sem campanha') AS 'ID_Campanha',
+       COALESCE(Campanha, 'Sem campanha') AS 'Campanha',
+       Orcado as 'Orcado',
+       Realizado,
+       COALESCE(Valor_desvio,Realizado - COALESCE(Orcado, 0)) AS 'Valor_desvio',
+       Percentual_desvio,
+       [%_Atingimento],
+       NULLIF(SUM(ORCADO) OVER(PARTITION BY Centro_de_custo),0) / NULLIF(SUM(ORCADO) OVER(),0) AS 'Peso_centro_custo',
+       SUM(ORCADO) OVER(PARTITION BY Categoria) / SUM(ORCADO) OVER() AS 'Peso_categoria',
+       NULLIF(SUM(ORCADO) OVER( PARTITION BY Ano, Centro_de_custo, Categoria ORDER BY Mes), 0) AS 'Orcado_YTD',
+       SUM(REALIZADO) OVER( PARTITION BY Ano, Centro_de_custo, Categoria ORDER BY Mes) AS 'Realizado_YTD',
+       SUM(REALIZADO) OVER( PARTITION BY Ano, Centro_de_custo, Categoria ORDER BY Mes) 
+       - NULLIF(SUM(ORCADO) OVER( PARTITION BY Ano, Centro_de_custo, Categoria ORDER BY Mes),0) AS 'Valor_desvio_YTD',
+       SUM(REALIZADO) OVER( PARTITION BY Ano, Centro_de_custo, Categoria ORDER BY Mes) 
+       / NULLIF(SUM(ORCADO) OVER( PARTITION BY Ano, Centro_de_custo, Categoria ORDER BY Mes),0) AS 'Percentual_desvio_YTD',
+       Status_dado_orcado,
+       Flag_centro_custo_coringa,
+       Flag_houve_orcamento
+FROM T
+
+
+
+
+
+
+go
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 -------------------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------- VERIFICAÇÃO DA TIPAGEM DE DADOS DAS VIEWS ----------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------------------

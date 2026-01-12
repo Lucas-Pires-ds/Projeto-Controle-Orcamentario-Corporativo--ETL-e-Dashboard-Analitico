@@ -199,33 +199,70 @@ Após o carregamento da Silver:
 
 **Resultado:** dimensões prontas para consumo analítico, sem inconsistências estruturais.
 
-## 📊 Camada Gold e Análises
+## 🥇 Camada Gold — Decisões Analíticas
 
-### — Análise Orçado vs Realizado
+A camada Gold foi pensada para **reduzir lógica no Power BI** e entregar métricas prontas, com regras explícitas e defensivas aplicadas ainda no SQL Server.
 
-Nesta etapa, foi construída a camada analítica responsável por consolidar **orçamento planejado** e **execução real**, permitindo análises comparativas mensais por centro de custo e categoria.
+Durante o desenvolvimento, ficou claro que uma única view não atendia bem a todos os objetivos analíticos. Por isso, foram criadas **duas views Gold distintas**, cada uma com um propósito claro.
 
-A consolidação cruza granularidades distintas:
-- Orçamento mensal (`fact_orcamento`)
-- Lançamentos financeiros diários (`fact_lancamentos`)
+### 📊 Gold Mensal — Orçado vs Realizado
 
-Esse cruzamento é viabilizado por meio da `dim_calendario`, garantindo alinhamento temporal consistente.
+A view **`vw_gold_mensal`** possui **granularidade mensal** e é voltada para a visão executiva e financeira.
 
-### ⚙️ Regras Analíticas Implementadas
+Seu objetivo é responder perguntas como:
 
-A query de consolidação aplica regras explícitas de negócio:
+- O orçamento do mês foi respeitado?
+- Onde estão os maiores desvios?
+- Quais centros de custo e categorias têm maior peso no orçamento?
 
-- **Orçado:** soma mensal do orçamento planejado
+Principais métricas:
+
+- **Orcado** — soma mensal do orçamento planejado  
+- **Realizado** — soma mensal dos lançamentos financeiros  
+- **Valor_desvio** — diferença entre realizado e orçado  
+- **Percentual_desvio** — variação percentual em relação ao orçamento  
+- **%_Atingimento** — quanto do orçamento foi consumido  
+- **Peso_centro_custo / Peso_categoria** — participação relativa no orçamento total  
+- **Métricas YTD** — acumulados de orçado, realizado e desvio ao longo do ano  
+
+Essa view foi desenhada para consumo direto em dashboards, sem necessidade de cálculos complexos em DAX.
+
+### 📅 Gold Diária — Acompanhamento Intramês
+
+Além da visão mensal, foi criada uma **view Gold diária**, voltada para acompanhamento operacional.
+
+O objetivo é permitir análises como:
+
+- Quanto do orçamento do mês já foi consumido até hoje?
+- O ritmo de gasto está acima do esperado?
+- Em que momento do mês os desvios começam a aparecer?
+
+A separação entre Gold mensal e Gold diária evita:
+
+- Views excessivamente complexas
+- Mistura de granularidades diferentes
+- Lógica condicional desnecessária no Power BI
+
+
+### Regras Analíticas Implementadas
+
+As views da camada Gold aplicam regras de negócio explícitas para facilitar a leitura e o uso direto no Power BI, evitando lógica desnecessária no relatório.
+
+Principais métricas consolidadas:
+
+- **Orçado:** soma do orçamento planejado no período
 - **Realizado:** soma dos lançamentos financeiros efetivos
-- **Saldo de Orçamento:** diferença entre orçado e realizado
-- **Percentual Consumido:** razão entre realizado e orçado
-- **Status do Orçamento:** classificação automática baseada no consumo
+- **Desvio:** diferença entre orçado e realizado
+- **Percentual Consumido:** relação entre realizado e orçado (quando existe orçamento)
 
-Regras de status:
+Regras importantes:
 
-- `Orçamento estourado` → realizado maior que o orçado
-- `Orçamento disponível` → realizado menor que o orçado
-- `Sem orçamento` → inexistência de planejamento para o período
+- Quando não há orçamento planejado para o período, os indicadores percentuais permanecem como `NULL`
+- Divisões por zero são evitadas com `NULLIF`, garantindo estabilidade do modelo
+- O consumo é analisado separando visão mensal (executiva) e diária (acompanhamento intramês)
+
+Essas regras tornam os indicadores mais confiáveis e evitam interpretações incorretas nos dashboards.
+
 
 ### 🧠 Tratamento de Cenários de Exceção
 
