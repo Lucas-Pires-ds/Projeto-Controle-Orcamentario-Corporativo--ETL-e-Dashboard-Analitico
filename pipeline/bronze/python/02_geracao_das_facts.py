@@ -103,7 +103,7 @@ while data_atual <= data_fim:
 df_lancamentos = pd.DataFrame(lancamentos_list)
 
 # --- 4. EXPORTAÇÃO ---
-df_orcamento.to_csv('fato_orcamento.csv', index=False, encoding='utf-8-sig')
-df_lancamentos.to_csv('fato_lancamentos.csv', index=False, encoding='utf-8-sig')
+df_orcamento.to_csv('fact_orcamento.csv', index=False, encoding='utf-8-sig')
+df_lancamentos.to_csv('fact_lancamentos.csv', index=False, encoding='utf-8-sig')
 
 print(f"Sucesso! Gerados {len(df_lancamentos)} lançamentos e {len(df_orcamento)} linhas de orçamento.")

@@ -206,6 +206,41 @@ O modelo foi construído seguindo o padrão **Star Schema**, priorizando clareza
 
 ---
 
+## 📄 Tabela Fato — fact_orcamento
+
+A `fact_orcamento` reúne os valores orçados por centro de custo e categoria, com granularidade mensal, pronta para análises financeiras.
+
+### Diagnóstico de Qualidade (Pré-Carga)
+
+Durante a análise da `stg_orcamento`, identificamos:
+
+- **Integridade Temporal**
+  - Todas as datas presentes e consistentes
+- **Integridade Referencial**
+  - Todos os IDs de centro de custo e categoria referenciam dimensões existentes
+- **Valores fora do esperado**
+  - 6 registros apresentam variações extremamente altas e foram sinalizados como “Dado suspeito” (~R$1M acumulado)
+- **Conversão de Tipos**
+  - Colunas originais como `VARCHAR` convertidas para `INT` (`id`, `ano`, `mes`) e `DECIMAL(18,2)` (`valor`)
+- **Status de Confiabilidade**
+  - Criada coluna `status_dado` para indicar se o registro é confiável ou suspeito
+
+---
+
+### Decisões de Engenharia
+
+- **Sinalização de dados suspeitos**
+  - Nenhum registro foi removido; valores extremos recebem flag no `status_dado`
+- **Segurança dos valores**
+  - Garantia de que `valor` seja sempre positivo (`CHECK > 0`)
+- **Padronização de datas**
+  - Todas as datas consolidadas no último dia do mês (`EOMONTH`)
+- **Preparação para análise**
+  - Base pronta para cruzamento com lançamentos e uso no Power BI
+
+
+---
+
 ## 📄 Tabela Fato — fact_lancamentos
 
 A tabela `fact_lancamentos` representa os lançamentos financeiros realizados.
@@ -244,6 +279,36 @@ Durante o profiling da `stg_lancamentos`, foram identificados:
 - Chave primária definida
 - Integridade referencial garantida
 - 100% dos registros válidos segundo regras de negócio
+
+---
+
+## 📅 Dimensão — dim_calendario
+
+A `dim_calendario` fornece referência completa de datas para suportar análises financeiras e orçamentárias, incluindo dias úteis, semanas, meses, trimestres, semestres e bimestres.
+
+### Estrutura e Consistência
+
+A tabela foi criada de forma programática para cobrir todo o período entre `01/01/2023` e `31/12/2024`:
+
+- **Datas únicas**
+  - Cada data é registrada apenas uma vez (chave primária)
+- **Dias úteis**
+  - Classificação “sim”/“nao” baseada no dia da semana
+- **Agregações temporais**
+  - Meses, trimestres, semestres e bimestres consistentes com cada data
+- **Colunas de referência**
+  - Nome do mês, ano/mês, semestre/ano, trimestre/ano, bimestre/ano e formatos numéricos de suporte a análises
+
+---
+
+### Decisões de Engenharia
+
+- **Nenhum registro descartado**
+  - Todas as datas estão dentro do período definido
+- **Padronização de flags**
+  - Dias úteis uniformizados para análise de fluxo financeiro
+- **Preparação para análise**
+  - Tabela pronta para joins com fatos (`fact_lancamentos`, `fact_orcamento`) e uso direto no Power BI
 
 ---
 
@@ -296,7 +361,7 @@ Responsabilidades:
 
 - Uso consciente da dim_calendario para continuidade temporal
 
-- Métricas avançadas:
+- Métricas utilizadas:
 
   - YTD
 
@@ -330,10 +395,11 @@ Responsabilidades:
 
 ## 🛠️ Stack Utilizada
 
-- **SQL Server** — ETL e modelagem dimensional
-- **Python (Pandas)** — ingestão e dados sintéticos
-- **Power BI** — visualização
 - **Git / GitHub** — versionamento e documentação
+- **Python (Pandas)** — ingestão e dados sintéticos
+- **SQL Server** — ETL e modelagem dimensional
+- **Power BI** — visualização
+
 
 ---
 
@@ -350,7 +416,8 @@ O foco está no processo:
 
 ## 📎 Próximos Passos
 
-- Evoluir análises no Power BI
+- Adicionar diagrama de modelo dimensional
+- Iniciar a construção dos dashboards no Power BI
 - Publicar dashboards finais
 
 > **Status:** projeto em desenvolvimento contínuo.
