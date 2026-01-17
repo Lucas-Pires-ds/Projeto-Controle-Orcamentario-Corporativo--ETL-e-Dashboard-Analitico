@@ -143,6 +143,6 @@ Este projeto faz parte de um portfólio de dados, desenvolvido com foco em boas 
 
 A documentação técnica completa de cada etapa está disponível nos respectivos diretórios do repositório.
 
-Feedbacks e sugestões são bem-vindos através das issues do GitHub ou por mensagem no meu **[Linkedin:](https://www.linkedin.com/in/lucas-pires-da-hora/)**.
+Feedbacks e sugestões são bem-vindos através das issues do GitHub ou por mensagem no meu **[Linkedin](https://www.linkedin.com/in/lucas-pires-da-hora/)**.
 
 ---
