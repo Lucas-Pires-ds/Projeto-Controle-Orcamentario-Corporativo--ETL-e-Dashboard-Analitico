@@ -30,7 +30,6 @@ Empresas de serviços frequentemente enfrentam desafios na gestão orçamentári
 - Dados financeiros provenientes de múltiplas fontes
 - Dificuldade em consolidar orçado vs realizado
 - Baixa confiabilidade dos indicadores financeiros
-- Ausência de controle de qualidade antes da análise
 - Dependência excessiva de tratamentos manuais no BI
 
 Este projeto simula esse cenário e propõe uma abordagem estruturada para lidar com esses problemas.
@@ -100,7 +99,7 @@ Cada camada do pipeline possui documentação técnica específica em seu diret�
 
 ---
 
-## 🛠️ Stack Tecnológica
+## 🛠️ Stack Utilizada
 
 | Tecnologia | Uso |
 |------------|-----|
@@ -155,7 +154,6 @@ Após aplicação das regras de ETL e qualidade:
 **Próximos passos:**
 - [ ] Desenvolvimento dos dashboards no Power BI
 - [ ] Publicação de visualizações finais
-- [ ] Adição de testes automatizados de qualidade
 
 ---
 

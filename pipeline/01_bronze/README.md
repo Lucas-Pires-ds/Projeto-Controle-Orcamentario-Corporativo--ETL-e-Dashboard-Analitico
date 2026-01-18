@@ -17,7 +17,7 @@ A camada Bronze é responsável pela **ingestão de dados brutos** sem aplicar n
 
 ---
 
-## 🔧 Tecnologias Utilizadas
+## 🔧 Stack Utilizada
 
 ### Python (Pandas)
 - Geração de dados sintéticos simulando sistema financeiro

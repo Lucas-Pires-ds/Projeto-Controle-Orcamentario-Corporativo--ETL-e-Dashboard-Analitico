@@ -117,7 +117,7 @@ O pipeline implementa validações em múltiplos pontos:
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## 🛠️ Stack Utilizada
 
 - **SQL (SQL Server)**: Armazenamento, transformações, modelagem dimensional
 - **Python (Pandas)**: Geração de dados sintéticos, ingestão
