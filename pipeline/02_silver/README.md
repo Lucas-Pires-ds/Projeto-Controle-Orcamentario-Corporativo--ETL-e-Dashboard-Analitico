@@ -34,7 +34,7 @@ silver/
 
 ## 🧩 Modelo Dimensional
 
-![Modelo Dimensional](docs_e_imagens/modelo_dimensional.png)
+![Modelo Dimensional](../../docs_e_imagens/modelo_dimensional.png)
 
 O modelo implementado segue o padrão **Star Schema** com as seguintes entidades:
 
