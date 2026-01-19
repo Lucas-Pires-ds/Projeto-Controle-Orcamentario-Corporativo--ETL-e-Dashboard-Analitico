@@ -65,6 +65,17 @@ O projeto segue o padrão **Medallion Architecture** (Bronze → Silver → Gold
 
 📖 **[Documentação completa do pipeline](pipeline/)**
 
+### Modelo Dimensional (Star Schema)
+
+![Modelo Dimensional](docs_e_imagens/modelo_dimensional.png)
+
+A camada Silver implementa um modelo dimensional completo com:
+- 📊 **2 Fatos**: Orçamento (mensal) e Lançamentos (diário)
+- 📋 **5 Dimensões**: Centro de Custo, Categoria, Fornecedores, Campanhas, Calendário
+- 🔗 **Integridade Referencial**: Todas as foreign keys validadas via constraints
+
+📖 **[Ver documentação técnica completa →](pipeline/silver/)**
+
 ---
 
 ## 🧭 Como Navegar Neste Repositório
