@@ -2,7 +2,7 @@
 
 ## Responsabilidade
 
-A camada de **Dashboard** é responsável por **consumir as views da camada Gold** e transformar os dados analíticos em **visualizações claras para tomada de decisão**, separando explicitamente visões **executivas (mensais)** e **operacionais (intra-mês)**.
+O **Dashboard** é responsável por **consumir as views da camada Gold** e transformar os dados analíticos em **visualizações claras para tomada de decisão**, separando explicitamente visões **executivas (mensais)** e **operacionais (intra-mês)**.
 
 **Objetivo**: Oferecer leitura executiva do desempenho orçamentário e, ao mesmo tempo, permitir acompanhamento operacional do consumo do mês corrente.
 

@@ -335,8 +335,9 @@ MEDIANA AS (
                                                         Dia_do_mes,
                                                         id_centro_custo) AS 'Mediana_gasto_ate_dia'
        FROM ACUMULADO_FINAL
-       WHERE Mes_ref < DATEFROMPARTS(2024, 12, 1) -- PARA PEGAR SOMENTE MESES ANTERIORES AO ATUAL (EM PRODUCAO O IDEAL SERIA UTILIZAR 
-)                                                 -- "Mes_ref < DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)")
+       WHERE Mes_ref < DATEFROMPARTS(2024, 12, 1)       -- Exclui o mês atual (dezembro/2024) do cálculo da mediana histórica para evitar viés de dados incompletos.
+       )                                                -- Em produção o ideal seria usar Mes_ref < DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)         
+                                                       
 
 SELECT 
        YEAR(FL.data_lancamento) AS 'Ano',
@@ -364,6 +365,18 @@ SELECT
               ORDER BY FL.data_lancamento
        ) AS 'Gasto_MTD',
        NULLIF(Mediana_gasto_ate_dia, 0) AS 'Mediana_MTD_CC',
+       SUM(valor) OVER(
+              PARTITION BY 
+                     FL.id_centro_custo,
+                     FL.id_categoria,
+                     FL.id_fornecedor,
+                     FL.id_campanha,
+                     YEAR(FL.data_lancamento),
+                     MONTH(FL.data_lancamento)
+              ORDER BY FL.data_lancamento
+       )
+       /
+       NULLIF(Mediana_gasto_ate_dia, 0) AS 'Perc_desvio_mediana',
        CASE 
               WHEN SUM(valor) OVER(
               PARTITION BY 
@@ -389,7 +402,7 @@ SELECT
        /
        NULLIF(Mediana_gasto_ate_dia, 0) BETWEEN 0.81 AND 1
               THEN 'Dentro_do_normal'
-              ELSE 'acima_do_normal'
+              ELSE 'Acima_do_normal'
               END AS 'Flag_alerta_gasto' ,
        FL.valor_original AS 'Valor_original',      
        FL.status_pagamento AS 'Status_pagamento',
@@ -411,5 +424,3 @@ FROM fact_lancamentos FL
               AND MED.id_centro_custo = FL.id_centro_custo
 
 GO
-
-SELECT * FROM vw_gold_lancamentos

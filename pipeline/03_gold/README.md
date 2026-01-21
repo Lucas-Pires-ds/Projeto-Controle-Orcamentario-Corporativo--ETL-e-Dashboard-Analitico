@@ -118,28 +118,43 @@ ORDER BY Realizado DESC
 
 ### 📄 vw_gold_lancamentos
 
-**Propósito**: Base detalhada auditável para drill-down e investigação
+**Propósito**: Base detalhada auditável com **alertas preventivos de gasto** baseados em benchmark histórico
 
 **Granularidade**: Transação (diária)
 
 **Campos principais**:
 - Ano, Mês, Ano_mes, Data do lançamento
-- Centro de custo, Categoria, Fornecedor, Campanha
-- **Gasto_MTD**: Acumulado do mês até o dia do lançamento (detalhado)
-- **Mediana_MTD_CC**: Benchmark histórico do Centro de Custo para o dia correspondente
-- **Flag_alerta_gasto**: Status do gasto (Abaixo/Dentro/Acima do normal)
-- Valor tratado e valor original
+- Centro de custo, Categoria, Fornecedor, Campanha (IDs e nomes)
+- **Valor** e **Valor_original**
+- **Gasto_MTD**: Acumulado mensal até a data do lançamento
+- **Mediana_MTD_CC**: Benchmark histórico (mediana dos gastos acumulados até o mesmo dia em meses anteriores)
+- **Flag_alerta_gasto**: Indicador de ritmo de gasto (Abaixo_do_normal / Dentro_do_normal / Acima_do_normal)
 - Status de pagamento
 - Flag de centro de custo coringa
 
+**Lógica de Alerta Preventivo:**
+
+A view implementa um sistema de alerta baseado em **mediana histórica** que permite identificar desvios no ritmo de gasto **antes do fechamento do mês**.
+```sql
+-- Exemplo: Se hoje é dia 15 e o gasto acumulado já é 120% da mediana histórica
+-- do dia 15, isso indica ritmo acima do normal
+Flag_alerta_gasto = 
+  CASE 
+    WHEN Gasto_MTD / Mediana_MTD_CC <= 0.8  THEN 'Abaixo_do_normal'
+    WHEN Gasto_MTD / Mediana_MTD_CC <= 1.0  THEN 'Dentro_do_normal'
+    ELSE 'Acima_do_normal'
+  END
+```
+
+**Decisão técnica - Uso de Mediana:**
+
+Mediana foi escolhida ao invés de média por ser **robusta contra outliers**. Meses com gastos excepcionais (ex: compras sazonais, projetos pontuais) não distorcem a linha de referência, resultando em alertas mais confiáveis.
+
 **Características**:
-- Preserva granularidade original da `fact_lancamentos` para investigação de causa raiz
 - Enriquecimento dimensional completo via LEFT JOINs
-- Nenhuma agregação aplicada (permite drill-down total)
-- Tratamento de campanhas nulas: `COALESCE(nome_campanha, 'Sem_campanha')`
-- **Inteligência Estatística**: Compara o ritmo de gasto atual com a mediana histórica de acumulados diários
-- Uso de `PERCENTILE_CONT(0.5)` para garantir um benchmark imune a outliers passados
-- Proteção contra divisão por zero via `NULLIF` no cálculo de desvio
+- Nenhuma agregação final (permite drill-down total)
+- Cálculos de acumulado via window functions
+- Proteção contra divisão por zero (`NULLIF`)
 
 **Exemplo de uso**:
 ```sql
@@ -147,15 +162,13 @@ SELECT
     Data_lancamento,
     Centro_de_custo,
     Categoria,
-    Fornecedor,
-    Campanha,
-    Valor,
-    Status_pagamento,
-    Flag_centro_custo_coringa
+    Gasto_MTD,
+    Mediana_MTD_CC,
+    Flag_alerta_gasto
 FROM vw_gold_lancamentos
 WHERE Ano = 2024 AND Mes = 12
-  AND Flag_centro_custo_coringa = 'Nao'
-ORDER BY Valor DESC
+  AND Flag_alerta_gasto = 'Acima_do_normal'
+ORDER BY Data_lancamento DESC
 ```
 
 ---
