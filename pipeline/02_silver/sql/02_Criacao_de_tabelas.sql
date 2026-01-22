@@ -40,6 +40,7 @@ CREATE TABLE dim_calendario(
     dia_util VARCHAR(50),
     ano INT NOT NULL,
     mes INT NOT NULL,
+    dia INT NOT NULL,
     nome_do_mes VARCHAR(50) NOT NULL,
     mes_ano VARCHAR(50) NOT NULL,
     ano_mes INT NOT NULL,
@@ -57,7 +58,8 @@ CREATE TABLE dim_calendario(
     CONSTRAINT dim_calendario_data_ck CHECK (data BETWEEN '20230101' AND '20241231'),
     CONSTRAINT dim_calendario_dia_util_ck CHECK (dia_util in ('sim', 'nao')),
     CONSTRAINT dim_calendario_ano_ck CHECK (ano in (2023, 2024)),
-    CONSTRAINT dim_calendario_mes_ck CHECK (mes BETWEEN 1 AND 12), 
+    CONSTRAINT dim_calendario_mes_ck CHECK (mes BETWEEN 1 AND 12),
+    CONSTRAINT dim_calendario_dia_ck CHECK (mes BETWEEN 1 AND 31), 
     CONSTRAINT dim_calendario_semestre_ck CHECK (semestre IN (1,2)),
     CONSTRAINT dim_calendario_trimestre_ck CHECK (trimestre IN (1,2,3,4)),
     CONSTRAINT dim_calendario_bimestre_ck CHECK (bimestre IN (1,2,3,4,5,6))

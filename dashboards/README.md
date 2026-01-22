@@ -1,187 +1,315 @@
-# Visualização de dados — Power BI
+# Dashboard — Visualização e Analytics
 
 ## Responsabilidade
 
-O **Dashboard** é responsável por **consumir as views da camada Gold** e transformar os dados analíticos em **visualizações claras para tomada de decisão**, separando explicitamente visões **executivas (mensais)** e **operacionais (intra-mês)**.
+A camada de Dashboard é responsável por **consumir as views Gold e transformar dados analíticos em visualizações acionáveis** para tomada de decisão.
 
-**Objetivo**: Oferecer leitura executiva do desempenho orçamentário e, ao mesmo tempo, permitir acompanhamento operacional do consumo do mês corrente.
-
----
-
-## 🎯 Princípios de Design Adotados
-
-As decisões abaixo guiam toda a construção dos dashboards:
-
-- **Separação de contextos**: visão executiva ≠ visão operacional
-- **Coerência com a camada Gold**: dashboards não recriam lógica já resolvida em SQL
-- **Leitura rápida**: poucos visuais centrais, com apoio de análises complementares
-- **Rastreabilidade**: decisões analíticas documentadas, não implícitas
+**Objetivo**: Entregar análise executiva do desempenho orçamentário e acompanhamento operacional preventivo do mês corrente.
 
 ---
 
-## 📊 Estrutura Geral do Dashboard
+## 🎯 Características
 
-Foi definido **um único arquivo PBIX**, organizado em **múltiplas páginas**, ao invés de múltiplos arquivos.
-
-### Justificativa da decisão
-
-- Facilita versionamento no repositório
-- Evita duplicação de modelo semântico
-- Garante consistência de métricas entre visões executiva e operacional
-- Navegação por páginas resolve a separação de contextos sem custo técnico adicional
+- Consumo direto das views Gold sem transformações adicionais
+- Separação entre visões executiva (mensal) e operacional (intra-mês)
+- Sistema de alertas preventivos baseado em mediana histórica
+- Navegação intuitiva entre contextos analíticos
+- Cálculos complexos resolvidos no SQL, BI foca em visualização
 
 ---
 
-## 🧭 Navegação
-
-### Menu lateral (fixo)
-
-Presente em todas as páginas, permitindo alternância entre:
-
-- Home (capa do dashboard)
-- Dashboard Executivo — Orçado vs Realizado
-- Dashboard Executivo — Comparações Temporais
-- Dashboard Operacional — Acompanhamento Intra-mês
-
-### Menu superior (contextual)
-
-- Páginas executivas: slicers de **período**, **centro de custo** e **categoria**
-- Página operacional: slicers de **centro de custo** e **categoria**
+## 📂 Estrutura de Arquivos
+```
+dashboard/
+├── README.md (este arquivo)
+└── controle_orcamentario.pbix
+```
 
 ---
 
-## 📈 Dashboard Executivo — Visão Mensal
+## 🏗️ Arquitetura do Dashboard
 
-### Página 1 — Orçado vs Realizado
+### Decisão: Arquivo Único com Múltiplas Páginas
 
-**Objetivo**: Avaliar desempenho orçamentário em visão consolidada.
+Estrutura adotada: **um único arquivo PBIX** com navegação interna entre páginas.
 
-**Perguntas de negócio que esta página responde:**
-1. O gasto total do ano está dentro do planejamento orçamentário?
-2. Quais meses apresentaram maior desvio em relação ao orçado?
-3. Quais Centros de Custo e Categorias são os principais responsáveis pelos estouros de orçamento?
+**Justificativa:**
+- Facilita versionamento (um único arquivo)
+- Evita duplicação do modelo semântico
+- Garante consistência de métricas entre visões
+- Navegação por páginas resolve separação de contextos
 
-**Visual central**:
-- Gráfico de linha com **Orçado vs Realizado** ao longo do ano
+---
 
-**KPIs (cards)**:
+## 📊 Estrutura de Páginas
+
+### 1. Home
+- Apresentação do dashboard
+- Contexto do projeto
+- Menu de navegação
+
+### 2. Executivo — Orçado vs Realizado
+- Análise mensal consolidada
+- Comparação planejado vs executado
+- Identificação de desvios
+
+### 3. Executivo — Comparações Temporais
+- Análise de crescimento (MoM, YoY)
+- Tendências temporais
+- Identificação de variações
+
+### 4. Operacional — Acompanhamento Intra-mês
+- Monitoramento diário do consumo
+- Sistema de alertas preventivos
+- Matriz de risco orçamentário
+
+---
+
+## 🧭 Sistema de Navegação
+
+### Menu Lateral (Fixo)
+- 🏠 Home
+- 📊 Executivo — Orçado vs Realizado
+- 📈 Executivo — Comparações Temporais
+- 🛠️ Operacional — Acompanhamento Intra-mês
+
+### Filtros Contextuais
+
+**Páginas Executivas:**
+- Período (ano/mês)
+- Centro de custo
+- Categoria
+
+**Página Operacional:**
+- Centro de custo
+- Categoria
+- Período: fixo no mês corrente
+
+---
+
+## 📈 Dashboard Executivo — Orçado vs Realizado
+
+### Objetivo
+Avaliar desempenho orçamentário mensal consolidado.
+
+### Perguntas Respondidas
+1. O gasto total está dentro do planejamento?
+2. Quais meses apresentaram maior desvio?
+3. Quais áreas são responsáveis pelos estouros?
+
+### Visual Central
+Gráfico de linha dupla: Orçado vs Realizado ao longo dos meses.
+
+### KPIs (Cards)
 - Total Orçado
 - Total Realizado
-- Desvio (R$)
-- Desvio (%)
+- Desvio Absoluto (R$)
+- Desvio Percentual (%)
 
-**Padrão dos cards**:
-- Valor principal (big number): contexto filtrado
-- Valor secundário: consolidado do ano inteiro
+Padrão dos cards: valor principal (contexto filtrado) + valor secundário (ano completo).
 
-**Visuais de apoio**:
-- Maiores desvios por **centro de custo**
-- Maiores desvios por **categoria**
+### Visuais de Apoio
+- Maiores desvios por centro de custo
+- Maiores desvios por categoria
 
 ---
 
-### Página 2 — Comparações Temporais
+## 📈 Dashboard Executivo — Comparações Temporais
 
-**Objetivo**: Analisar crescimento e variação de gastos ao longo do tempo.
+### Objetivo
+Analisar crescimento e variação de gastos ao longo do tempo.
 
-**Perguntas de negócio que esta página responde:**
-1. O gasto atual é maior ou menor do que o gasto no mesmo período do ano passado?
-2. Qual é a tendência de crescimento dos gastos mês a mês?
-3. Quais áreas tiveram o maior aumento de custo em relação ao ano anterior?
+### Perguntas Respondidas
+1. O gasto atual é maior que o mesmo período do ano passado?
+2. Qual a tendência de crescimento mês a mês?
+3. Quais áreas tiveram maior aumento de custo?
 
-**Visual central**:
-- Gráfico de colunas ou linhas comparando **ano atual vs ano anterior**
+### Visual Central
+Gráfico de colunas agrupadas: ano atual vs ano anterior.
 
-**KPIs (cards)**:
-- Crescimento MoM (R$)
-- Crescimento MoM (%)
-- Crescimento YoY (R$)
-- Crescimento YoY (%)
+### KPIs (Cards)
+- MoM Absoluto (R$)
+- MoM Percentual (%)
+- YoY Absoluto (R$)
+- YoY Percentual (%)
 
-**Visuais de apoio**:
-- Centros de custo com maior crescimento
-- Categorias com maior crescimento
+### Visuais de Apoio
+- Centros de custo com maior crescimento YoY
+- Categorias com maior crescimento YoY
 
 ---
 
 ## 🛠️ Dashboard Operacional — Acompanhamento Intra-mês
 
-**Objetivo**: Permitir **monitoramento diário do consumo do orçamento do mês corrente**, antecipando riscos de estouro.
+### Objetivo
+Monitoramento diário preventivo do consumo orçamentário, identificando desvios antes do fechamento.
 
-**Perguntas de negócio que esta página responde:**
-1. No ritmo de hoje, vamos terminar o mês acima ou abaixo do orçamento?
-2. O gasto acumulado até agora é condizente com o comportamento histórico (mediana) deste Centro de Custo?
-3. Quais categorias já consumiram mais de 80% do orçamento antes do fim do mês?
----
+### Perguntas Respondidas
+1. No ritmo atual, vamos terminar o mês acima ou abaixo do orçamento?
+2. O gasto acumulado está condizente com o comportamento histórico?
+3. Quais categorias já consumiram mais de 80% do orçamento?
 
-### Visual Central — Consumo Acumulado do Mês
+### Visual Central — Consumo Acumulado
 
-Gráfico de linha contendo **três referências simultâneas**:
+Gráfico de linha com três referências simultâneas:
 
-1. **Realizado acumulado até o dia atual**
-2. **Orçado ideal acumulado do mês** (distribuição linear do orçamento mensal)
-3. **Linha de referência histórica** baseada na **mediana** do consumo dos meses anteriores, proporcionalizada pelos dias decorridos
+1. **Realizado Acumulado (MTD)**: Gasto real até hoje
+2. **Orçado Ideal Acumulado**: Distribuição linear do orçamento mensal (calculado em DAX)
+3. **Mediana Histórica**: Benchmark baseado no comportamento típico de meses anteriores
 
----
+**Interpretação:**
+- Linha acima da mediana → Ritmo elevado
+- Entre mediana e orçado → Dentro do esperado
+- Abaixo da mediana → Ritmo baixo
 
-### 📌 Decisão Analítica: Uso de Mediana (e não Média)
-
-A referência histórica intra-mês utiliza **mediana**, e não média.
-
-**Justificativa**:
-- A base possui **outliers relevantes** (meses atípicos já identificados na Silver e sinalizados na Gold)
-- A média é sensível a valores extremos e distorceria o padrão esperado
-- A mediana representa melhor o **comportamento típico de consumo**
-
-Essa decisão garante que o comparativo intra-mês seja:
-- Mais estável
-- Mais realista
-- Mais confiável como sinal de alerta
-
----
-
-### KPIs Operacionais (cards)
-
-- Orçamento total do mês
-- Realizado até o dia atual
-- % do orçamento consumido
-- % do mês decorrido
-
----
+### KPIs Operacionais
+- Orçamento Mensal
+- Realizado Até Hoje
+- % Orçamento Consumido
+- % Mês Decorrido
 
 ### Matriz de Risco Orçamentário
 
-Tabela/matriz destacando **centros de custo e categorias** com risco de estouro.
+Tabela destacando centros de custo e categorias por nível de risco:
 
-**Classificação definida**:
+- 🟢 **< 80%**: Baixo risco
+- 🟡 **80% – 100%**: Atenção
+- 🔴 **> 100%**: Estouro confirmado
 
-- < 80% do orçamento: **Baixo risco**
-- 80% – 100%: **Atenção**
-- > 100%: **Estouro de orçamento**
+---
 
-O objetivo é permitir **ação preventiva**, não apenas diagnóstico tardio.
+## 🚨 Sistema de Alertas Preventivos
+
+### Como Funciona
+
+O gasto acumulado até hoje (MTD) é comparado com a **mediana histórica** dos gastos até o mesmo dia em meses anteriores.
+
+**Exemplo:** Se hoje é dia 15 e o gasto já representa 120% da mediana do dia 15, indica ritmo acima do padrão.
+
+### Semáforo de Risco
+
+| Status | Condição | Interpretação |
+|--------|----------|---------------|
+| 🟢 Abaixo | MTD ≤ 80% da mediana | Ritmo inferior ao histórico |
+| 🟡 Normal | MTD entre 81% e 100% | Ritmo alinhado ao esperado |
+| 🔴 Acima | MTD > 100% | Ritmo superior — atenção |
+
+### Decisão: Mediana ao Invés de Média
+
+A referência histórica usa **mediana** porque a base possui meses com gastos atípicos (outliers) já identificados e sinalizados nas camadas anteriores.
+
+**Comparação:**
+- **Média**: Sensível a valores extremos, distorce o padrão
+- **Mediana**: Robusta contra outliers, representa comportamento típico
+
+**Resultado:** Alertas mais estáveis e confiáveis.
+
+### Implementação Técnica
+
+**Cálculo da mediana (SQL):**
+```sql
+PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY Gasto_ate_dia) 
+  OVER (PARTITION BY Dia_do_mes, id_centro_custo)
+```
+
+**Classificação do alerta (SQL):**
+```sql
+CASE 
+  WHEN Gasto_MTD / Mediana_MTD_CC <= 0.8  THEN 'Abaixo_do_normal'
+  WHEN Gasto_MTD / Mediana_MTD_CC <= 1.0  THEN 'Dentro_do_normal'
+  ELSE 'Acima_do_normal'
+END
+```
+
+**Orçado ideal acumulado (DAX):**
+```dax
+Orçado Ideal Acumulado = 
+VAR DiasNoMes = DAY(EOMONTH(MAX(dim_calendario[data]), 0))
+VAR OrcamentoMensal = SUM(vw_gold_orcamento[Orcado_mensal])
+VAR DiaAtual = DAY(MAX(dim_calendario[data]))
+RETURN DIVIDE(OrcamentoMensal, DiasNoMes) * DiaAtual
+```
+
+**Condicional de cor (DAX):**
+```dax
+Cor do Alerta = 
+SWITCH(
+    [Flag_alerta_gasto],
+    "Abaixo_do_normal", "#10B981",
+    "Dentro_do_normal", "#F59E0B",
+    "Acima_do_normal", "#EF4444",
+    "#9CA3AF"
+)
+```
 
 ---
 
 ## 🔗 Integração com a Camada Gold
 
-Os dashboards consomem exclusivamente:
+O dashboard consome exclusivamente as views analíticas:
 
-- `vw_gold_orcamento`
-- `vw_gold_realizado`
-- `vw_gold_lancamentos` 
+| View | Uso |
+|------|-----|
+| `vw_gold_orcamento` | Visão executiva mensal de orçamento |
+| `vw_gold_realizado` | Visão executiva mensal de realizado |
+| `vw_gold_lancamentos` | Visão operacional diária + alertas |
 
-**Princípios respeitados**:
-- Métricas complexas permanecem no SQL
-- Power BI foca em relacionamento, contexto e visualização
-- Cruzamento Orçado vs Realizado ocorre no BI, conforme decisão arquitetural da Gold
+### Princípios de Integração
 
+- Métricas complexas (YTD, MoM, YoY, mediana) calculadas no SQL
+- Power BI foca em relacionamentos, contexto e visualização
+- Cruzamento Orçado vs Realizado realizado no BI
+- Sem transformações adicionais no Power Query
+
+---
+
+## 🎯 Decisões de Design
+
+### Coerência com a Camada Gold
+
+O dashboard não recria lógica já resolvida na camada de dados. Métricas como YTD, MoM, YoY e flags de alerta vêm prontas da Gold, garantindo:
+- Dashboards performáticos
+- Métricas consistentes entre consumidores
+- Lógica auditável no SQL
+
+### Separação de Contextos
+
+**Páginas Executivas:**
+- Análise retrospectiva consolidada
+- Métricas de fechamento mensal
+- Comparações temporais fixas
+
+**Página Operacional:**
+- Monitoramento preventivo
+- Métricas de acumulado diário
+- Alertas baseados em benchmark
+
+### Leitura Rápida
+
+Cada página possui:
+- 1 visual central (responde a pergunta-chave)
+- 4-5 KPIs (números essenciais)
+- 2-3 visuais de apoio (detalhamentos)
+
+---
+
+## 📌 Resultado Final
+
+O dashboard entrega:
+
+- ✅ Visão executiva consolidada de desempenho orçamentário
+- ✅ Análise temporal de crescimento e variação
+- ✅ Monitoramento preventivo intra-mês com alertas confiáveis
+- ✅ Identificação de áreas de risco antes do fechamento
+- ✅ Rastreabilidade de decisões analíticas
 
 ---
 
 ## 📖 Próximos Passos
 
-- Implementação do modelo semântico no Power BI
-- Criação das medidas DAX necessárias
-- Validação das métricas com cenários reais
-- Documentação de decisões visuais e técnicas adicionais
+- [ ] Implementação do modelo semântico no Power BI
+- [ ] Criação das medidas DAX necessárias
+- [ ] Validação das métricas com cenários reais
+- [ ] Ajustes visuais baseados em testes de usabilidade
+
+---

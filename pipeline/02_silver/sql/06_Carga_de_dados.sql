@@ -68,6 +68,7 @@ INSERT INTO dim_calendario(
     dia_util,
     ano,
     mes,
+    dia,
     nome_do_mes,
     mes_ano,
     ano_mes,
@@ -86,6 +87,7 @@ DATENAME(WEEKDAY, @DATA),
 CASE WHEN DATENAME(WEEKDAY,@DATA) IN ('Sábado', 'Domingo') THEN 'nao' ELSE 'sim' END,
 YEAR(@DATA),
 MONTH(@DATA),
+DAY(@DATA),
 DATENAME(MONTH, @DATA),
 FORMAT(@DATA, 'MMM/yy'),
 CAST(FORMAT(@DATA, 'yyyyMM') AS INT),
@@ -122,7 +124,6 @@ END) AS INT)
 )
 SET @DATA +=1
 END
-
 
 
 -- fact_lancamentos
