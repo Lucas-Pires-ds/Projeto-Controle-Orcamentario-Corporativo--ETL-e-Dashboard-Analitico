@@ -38,6 +38,7 @@ categorias_recorrentes_variaveis = {
 }
 
 # --- GERAÇÃO FACT_ORCAMENTO ---
+
 orcamento_list = []
 id_orc = 1
 
@@ -86,6 +87,7 @@ if len(df_recorrentes) >= 6:
         df_orcamento.at[idx, 'valor_orcado'] = round(valor_atual * random.uniform(18, 22), 2)
 
 # --- GERAÇÃO FACT_LANCAMENTOS ---
+
 lancamentos_list = []
 data_atual = datetime(2023, 1, 1)
 data_fim = datetime(2024, 12, 31)

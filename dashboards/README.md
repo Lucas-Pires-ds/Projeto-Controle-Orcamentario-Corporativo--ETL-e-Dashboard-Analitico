@@ -134,16 +134,49 @@ Leitura imediata dos números essenciais:
 
 Gráfico de linha com três curvas simultâneas:
 
-1. **Orçado Ideal Acumulado**: Distribuição linear do orçamento mensal (calculado em DAX)
+1. **Orçado Ideal Acumulado**: Orçamento distribuído com base na referência histórica (calculado em DAX)
 2. **Realizado Acumulado (MTD)**: Gasto real até hoje
-3. **Mediana Histórica Acumulada**: Linha de comportamento esperado do consumo ao longo do mês
+3. **Referência Histórica Acumulada**: Linha de comportamento esperado do consumo ao longo do mês
+
+**Fonte de dados:**
+- Realizado MTD → `vw_gold_lancamentos[Gasto_MTD]`
+- Referência histórica → `vw_gold_referencia_mtd[valor_mediano_dia]`
+- Orçado ideal → Calculado via DAX usando `vw_gold_referencia_mtd[peso_do_dia]`
 
 **Interpretação:**
 - Realizado acima do orçado ideal → Risco de estouro
-- Realizado abaixo da mediana histórica → Ritmo inferior ao padrão
-- Realizado entre mediana e orçado → Dentro do esperado
+- Realizado abaixo da referência histórica → Ritmo inferior ao padrão
+- Realizado entre referência e orçado → Dentro do esperado
 
-**Decisão arquitetural:** Mediana histórica calculada no SQL (camada Gold) por ser um benchmark estrutural do negócio que não depende de interação do usuário.
+**Decisão arquitetural:** 
+
+A referência histórica vem da `vw_gold_referencia_mtd` por ser um benchmark estrutural do negócio que não depende de interação do usuário. A view fornece:
+- `peso_do_dia`: Percentual mediano acumulado até cada dia
+- `valor_mediano_dia`: Valor mediano (R$) de gasto MTD histórico
+
+**Cálculo do Orçado Ideal MTD (DAX):**
+```dax
+Orçado Ideal MTD = 
+VAR DiaAtual = DAY(MAX(dim_calendario[data]))
+VAR PesoHistorico = 
+    CALCULATE(
+        MAX(vw_gold_referencia_mtd[peso_do_dia]),
+        vw_gold_referencia_mtd[dia] = DiaAtual
+    )
+VAR OrcamentoMensal = SUM(vw_gold_orcamento[Orcado_mensal])
+RETURN OrcamentoMensal * PesoHistorico
+```
+
+**Lógica:**
+1. Identifica o dia atual do mês
+2. Busca o peso histórico acumulado esperado para este dia
+3. Aplica esse percentual ao orçamento mensal planejado
+4. Resultado: valor que "deveria" estar gasto até hoje baseado no histórico
+
+**Vantagens desta abordagem:**
+- ✅ Orçado ideal não é linear (reflete comportamento real de gastos)
+- ✅ Adapta-se ao contexto de filtros (CC, categoria)
+- ✅ Usa benchmark estatisticamente robusto (mediana)
 
 ### Visuais de Apoio
 
@@ -205,15 +238,28 @@ Métricas mais analíticas para investigação:
 - **Total a Pagar (Pendentes)**: Lançamentos abertos
 - **Previsão de Resultado Final**: Orçado mensal − (realizado pago + pendente)
 
+**Fonte de dados:**
+- `vw_gold_lancamentos` → Total do dia, Gasto MTD, Status pagamento
+- `vw_gold_orcamento` → Orçado mensal
+
 ### Visual Principal — Tabela de Lançamentos
 
 **Campos:**
 - Centro de custo
 - Categoria
 - Fornecedor
+- Campanha
 - Data
-- Valor
+- Total do dia (agregado diário)
+- Gasto MTD (acumulado até a data)
 - Status do pagamento
+
+**Decisão técnica:**
+
+A tabela usa `vw_gold_lancamentos`, que já agrega os lançamentos por dia. Isso significa:
+- ✅ Valores são somáveis corretamente no Power BI
+- ✅ Não há risco de contagem dupla ao aplicar filtros
+- ✅ Performance otimizada (menos linhas que a fact original)
 
 **Função:** Ponto final da análise, serve para validação e conferência, mas não incentiva microgestão excessiva.
 
@@ -240,6 +286,10 @@ Avaliar desempenho orçamentário mensal consolidado em perspectiva retrospectiv
 
 ### Visual Central
 Gráfico de linha dupla: Orçado vs Realizado ao longo dos meses.
+
+**Fonte de dados:**
+- `vw_gold_orcamento` → Orçado mensal
+- `vw_gold_realizado` → Realizado mensal
 
 ### KPIs (Cards)
 - Total Orçado
@@ -268,81 +318,25 @@ Analisar crescimento e variação de gastos ao longo do tempo.
 ### Visual Central
 Gráfico de colunas agrupadas: ano atual vs ano anterior.
 
+**Fonte de dados:**
+- `vw_gold_realizado` → Métricas MoM e YoY já pré-calculadas
+
 ### KPIs (Cards)
 - MoM Absoluto (R$)
 - MoM Percentual (%)
 - YoY Absoluto (R$)
 - YoY Percentual (%)
 
+**Decisão técnica:**
+
+Todas essas métricas vêm **prontas da camada Gold** via window functions `LAG()`:
+- ✅ Cálculos corretos mesmo com meses sem lançamentos (garantido pela `dim_calendario`)
+- ✅ Performance otimizada (calculado uma vez no SQL)
+- ✅ Lógica auditável e rastreável
+
 ### Visuais de Apoio
 - Centros de custo com maior crescimento YoY
 - Categorias com maior crescimento YoY
-
----
-
-## 🚨 Sistema de Alertas Preventivos
-
-### Fundamentação
-
-O gasto acumulado até hoje (MTD) é comparado com a **mediana histórica acumulada** dos gastos até o mesmo dia em meses anteriores.
-
-**Exemplo:** Se hoje é dia 15 e o gasto MTD já representa 120% da mediana histórica do dia 15, indica ritmo acima do padrão esperado.
-
-### Semáforo de Risco
-
-| Status | Condição | Interpretação |
-|--------|----------|---------------|
-| 🟢 Abaixo | MTD ≤ 80% da mediana | Ritmo inferior ao histórico |
-| 🟡 Normal | MTD entre 81% e 100% | Ritmo alinhado ao esperado |
-| 🔴 Acima | MTD > 100% | Ritmo superior — atenção necessária |
-
-### Decisão Estatística: Mediana vs Média
-
-**Escolha:** Mediana como métrica de referência histórica.
-
-**Justificativa:**
-- Base possui meses com gastos atípicos (outliers) já identificados nas camadas anteriores
-- Média é sensível a valores extremos, distorce o padrão esperado
-- Mediana é robusta contra outliers, representa comportamento típico
-- **Resultado:** Alertas mais estáveis, confiáveis e acionáveis
-
-### Implementação Técnica
-
-**Cálculo da mediana histórica acumulada (SQL — Camada Gold):**
-```sql
-PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY Gasto_ate_dia) 
-  OVER (PARTITION BY Dia_do_mes, id_centro_custo)
-```
-
-**Classificação do alerta (SQL — Camada Gold):**
-```sql
-CASE 
-  WHEN Gasto_MTD / Mediana_MTD_CC <= 0.8  THEN 'Abaixo_do_normal'
-  WHEN Gasto_MTD / Mediana_MTD_CC <= 1.0  THEN 'Dentro_do_normal'
-  ELSE 'Acima_do_normal'
-END
-```
-
-**Orçado ideal acumulado (DAX — Camada Semântica):**
-```dax
-Orçado Ideal Acumulado = 
-VAR DiasNoMes = DAY(EOMONTH(MAX(dim_calendario[data]), 0))
-VAR OrcamentoMensal = SUM(vw_gold_orcamento[Orcado_mensal])
-VAR DiaAtual = DAY(MAX(dim_calendario[data]))
-RETURN DIVIDE(OrcamentoMensal, DiasNoMes) * DiaAtual
-```
-
-**Formatação condicional (DAX):**
-```dax
-Cor do Alerta = 
-SWITCH(
-    [Flag_alerta_gasto],
-    "Abaixo_do_normal", "#10B981",
-    "Dentro_do_normal", "#F59E0B",
-    "Acima_do_normal", "#EF4444",
-    "#9CA3AF"
-)
-```
 
 ---
 
@@ -355,6 +349,7 @@ SWITCH(
 - Cálculos pesados e agregações complexas
 - Métricas históricas (mediana, YTD, MoM, YoY)
 - Benchmarks estruturais do negócio
+- Agregação diária de transações
 - Tudo que não depende diretamente do contexto de filtro do usuário
 
 #### Power BI (DAX — Camada Semântica)
@@ -363,13 +358,92 @@ SWITCH(
 - Projeções dinâmicas (dependem do período selecionado)
 - Métricas que variam com a interação do usuário
 - Relacionamentos e cruzamentos entre tabelas Gold
+- Cálculo do orçado ideal MTD
 
-### Views Consumidas
+### Views Consumidas e Uso Correto
 
-| View | Uso | Granularidade |
-|------|-----|---------------|
-| `vw_gold_orcamento` | Visão executiva de planejamento | Mensal |
-| `vw_gold_lancamentos` | Visão operacional + alertas | Diária |
+| View | Uso | Granularidade | Somável? |
+|------|-----|---------------|----------|
+| `vw_gold_orcamento` | Visão executiva de planejamento | Mensal | ✅ Sim |
+| `vw_gold_realizado` | Visão executiva consolidada | Mensal | ✅ Sim |
+| `vw_gold_lancamentos` | Visão operacional, KPIs MTD | Diária | ✅ Sim |
+| `vw_gold_referencia_mtd` | Linha de referência gráfica | Dia do mês | ❌ **Não** |
+
+**IMPORTANTE — Uso Correto da vw_gold_referencia_mtd:**
+
+Esta view **NÃO deve ser usada para somatórios**. Ela fornece benchmarks estatísticos que só fazem sentido no contexto correto:
+
+❌ **Uso incorreto:**
+```dax
+// ERRADO - soma medianas sem significado
+Total Referência = SUM(vw_gold_referencia_mtd[valor_mediano_dia])
+```
+
+✅ **Uso correto:**
+```dax
+// CERTO - busca o benchmark do dia específico
+Referência do Dia = 
+VAR DiaAtual = DAY(MAX(dim_calendario[data]))
+RETURN 
+    CALCULATE(
+        MAX(vw_gold_referencia_mtd[valor_mediano_dia]),
+        vw_gold_referencia_mtd[dia] = DiaAtual
+    )
+```
+
+✅ **Uso correto - Orçado Ideal:**
+```dax
+// CERTO - usa o peso histórico para distribuir o orçamento
+Orçado Ideal MTD = 
+VAR DiaAtual = DAY(MAX(dim_calendario[data]))
+VAR PesoHistorico = 
+    CALCULATE(
+        MAX(vw_gold_referencia_mtd[peso_do_dia]),
+        vw_gold_referencia_mtd[dia] = DiaAtual
+    )
+VAR OrcamentoMensal = SUM(vw_gold_orcamento[Orcado_mensal])
+RETURN OrcamentoMensal * PesoHistorico
+```
+
+**Relacionamento com outras tabelas:**
+
+A `vw_gold_referencia_mtd` se relaciona com as demais apenas para:
+- Aplicar filtros de Centro de Custo
+- Aplicar filtros de Categoria
+- **NÃO para agregações ou somatórios**
+
+### Separação de Lançamentos em Duas Views
+
+**Contexto da refatoração:**
+
+Na arquitetura v1.0, `vw_gold_lancamentos` continha:
+- Valores diários agregados (somáveis)
+- Mediana histórica MTD (não-somável)
+
+**Problema identificado:**
+
+Ao consumir no Power BI, quando múltiplos centros de custo ou categorias eram filtrados, a mediana histórica era **somada incorretamente**, resultando em benchmarks distorcidos.
+
+**Solução implementada (v2.0):**
+
+Separação em duas views especializadas:
+
+1. **`vw_gold_lancamentos`** (Granularidade: diária)
+   - Valores agregados por dia
+   - Total do dia somável
+   - Gasto MTD calculado via window function
+   - Uso: KPIs, totais, gráficos de evolução
+
+2. **`vw_gold_referencia_mtd`** (Granularidade: dia do mês)
+   - Peso do dia (mediana do % acumulado)
+   - Valor mediano do dia (mediana do R$ acumulado)
+   - Uso: **apenas** linhas de referência e cálculo de orçado ideal
+
+**Impacto no Power BI:**
+
+- ✅ Métricas corretas ao aplicar filtros
+- ✅ Separação clara de responsabilidades
+- ✅ Cada view usada conforme seu propósito
 
 ### Princípios de Integração
 
@@ -378,6 +452,7 @@ SWITCH(
 - ✅ Cruzamento Orçado vs Realizado realizado no BI via relacionamento
 - ✅ Sem transformações adicionais no Power Query
 - ✅ Modelo leve, performático e alinhado à filosofia de arquitetura em camadas
+- ✅ **Views somáveis separadas de views de referência**
 
 **Resultado:** Dashboards responsivos, métricas auditáveis e lógica rastreável até a camada de dados.
 
@@ -427,7 +502,7 @@ SWITCH(
 
 ### Coerência com a Camada Gold
 
-O dashboard não recria lógica já resolvida na camada de dados. Métricas como YTD, MoM, YoY, mediana e flags de alerta vêm prontas da Gold, garantindo:
+O dashboard não recria lógica já resolvida na camada de dados. Métricas como YTD, MoM, YoY, mediana e agregações diárias vêm prontas da Gold, garantindo:
 - ✅ Dashboards performáticos
 - ✅ Métricas consistentes entre consumidores
 - ✅ Lógica auditável no SQL
@@ -440,12 +515,14 @@ O dashboard não recria lógica já resolvida na camada de dados. Métricas como
 - Métricas de acumulado diário (MTD)
 - Alertas baseados em benchmark
 - Foco: identificar onde agir
+- **Fonte:** `vw_gold_lancamentos` + `vw_gold_referencia_mtd` (apenas referência)
 
 **Páginas Executivas:**
 - Análise retrospectiva consolidada
 - Métricas de fechamento mensal
 - Comparações temporais fixas (MoM, YoY)
 - Foco: entender o que aconteceu
+- **Fonte:** `vw_gold_orcamento` + `vw_gold_realizado`
 
 ### Princípio de Leitura Rápida
 
@@ -458,16 +535,157 @@ Cada página possui estrutura padronizada:
 
 ---
 
+## 📌 Modelo de Dados — Relacionamentos
+
+### Tabelas Fato (Somáveis)
+
+- `vw_gold_orcamento`
+- `vw_gold_realizado`
+- `vw_gold_lancamentos`
+
+**Relacionamentos:**
+- Via `dim_calendario` (data)
+- Via dimensões de Centro de Custo (id_centro_custo)
+- Via dimensões de Categoria (id_categoria)
+
+### Tabela de Referência (Não-Somável)
+
+- `vw_gold_referencia_mtd`
+
+**Relacionamentos:**
+- Com dimensões de Centro de Custo e Categoria
+- **NÃO tem relacionamento direto com dim_calendario** (usa campo `dia` independente)
+- Usada apenas para contexto de filtro, não para agregações
+
+**Cardinalidade:**
+- Muitos para Um (*:1) com dimensões
+- Filtros fluem das dimensões para a referência
+- Valores da referência **NÃO se propagam para outras tabelas**
+
+---
+
+## 📊 Medidas DAX Essenciais
+
+### Métricas Básicas (Somáveis)
+
+```dax
+Total Orçado = SUM(vw_gold_orcamento[Orcado_mensal])
+
+Total Realizado = SUM(vw_gold_lancamentos[Total_do_dia])
+
+Total Realizado MTD = 
+    CALCULATE(
+        SUM(vw_gold_lancamentos[Total_do_dia]),
+        FILTER(
+            ALL(dim_calendario[data]),
+            dim_calendario[data] <= MAX(dim_calendario[data])
+            && MONTH(dim_calendario[data]) = MONTH(MAX(dim_calendario[data]))
+            && YEAR(dim_calendario[data]) = YEAR(MAX(dim_calendario[data]))
+        )
+    )
+```
+
+### Orçado Ideal MTD (Baseado em Referência Histórica)
+
+```dax
+Orçado Ideal MTD = 
+VAR DiaAtual = DAY(MAX(dim_calendario[data]))
+VAR PesoHistorico = 
+    CALCULATE(
+        MAX(vw_gold_referencia_mtd[peso_do_dia]),
+        vw_gold_referencia_mtd[dia] = DiaAtual,
+        ALLEXCEPT(vw_gold_referencia_mtd, vw_gold_referencia_mtd[id_centro_custo], vw_gold_referencia_mtd[id_categoria])
+    )
+VAR OrcamentoMensal = [Total Orçado]
+RETURN 
+    IF(
+        NOT ISBLANK(OrcamentoMensal) && NOT ISBLANK(PesoHistorico),
+        OrcamentoMensal * PesoHistorico,
+        BLANK()
+    )
+```
+
+**Explicação:**
+1. Identifica o dia atual do mês
+2. Busca o peso histórico esperado para este dia (mantendo filtros de CC/Categoria)
+3. Aplica o peso ao orçamento mensal
+4. Retorna BLANK se não houver dados
+
+### Referência Histórica (Linha de Gráfico)
+
+```dax
+Referência Histórica MTD = 
+VAR DiaAtual = DAY(MAX(dim_calendario[data]))
+RETURN 
+    CALCULATE(
+        MAX(vw_gold_referencia_mtd[valor_mediano_dia]),
+        vw_gold_referencia_mtd[dia] = DiaAtual
+    )
+```
+
+### Desvios e Projeções
+
+```dax
+Desvio Orçamento = [Total Realizado MTD] - [Orçado Ideal MTD]
+
+% Orçamento Consumido = 
+    DIVIDE(
+        [Total Realizado MTD],
+        [Orçado Ideal MTD],
+        0
+    )
+
+Projeção Final = 
+VAR DiasNoMes = DAY(EOMONTH(MAX(dim_calendario[data]), 0))
+VAR DiaAtual = DAY(MAX(dim_calendario[data]))
+VAR TaxaGasto = DIVIDE([Total Realizado MTD], DiaAtual, 0)
+RETURN TaxaGasto * DiasNoMes
+```
+
+---
+
 ## 📌 Resultado Final
 
 O dashboard entrega:
 
 - ✅ Visão executiva consolidada de desempenho orçamentário
 - ✅ Análise temporal de crescimento e variação (planejada)
-- ✅ Monitoramento preventivo intra-mês com alertas estatisticamente confiáveis
+- ✅ Monitoramento preventivo intra-mês com benchmarks estatisticamente confiáveis
 - ✅ Identificação de áreas de risco antes do fechamento
 - ✅ Rastreabilidade de decisões analíticas até a camada de dados
 - ✅ Experiência de usuário otimizada para leitura rápida e investigação controlada
+- ✅ **Uso correto de views somáveis vs não-somáveis**
+- ✅ **Orçado ideal calculado com base em comportamento histórico real**
+
+---
+
+## 🔄 Evolução da Arquitetura — Impacto no Dashboard
+
+### v1.0 → v2.0: Refatoração da Integração com Gold
+
+**Problema da v1.0:**
+
+Dashboard consumia `vw_gold_lancamentos` única que continha:
+- Valores transacionais (somáveis)
+- Medianas históricas (não-somáveis)
+
+**Sintoma:** Ao filtrar múltiplos CCs, o Power BI somava as medianas, gerando benchmarks irreais.
+
+**Solução v2.0:**
+
+Consumo de duas views especializadas:
+1. `vw_gold_lancamentos` → para KPIs e totais
+2. `vw_gold_referencia_mtd` → **apenas** para linhas de referência
+
+**Impacto no modelo de dados:**
+- ✅ Relacionamentos reestruturados
+- ✅ Medidas DAX ajustadas para buscar dados da view correta
+- ✅ Gráficos usando séries independentes (realizado vs referência)
+
+**Resultado:**
+- ✅ Benchmarks corretos em qualquer contexto de filtro
+- ✅ Orçado ideal calculado com precisão
+- ✅ Modelo mais robusto e manutenível
 
 ---
 
@@ -479,6 +697,8 @@ O dashboard entrega:
 - [x] Sistema de alertas especificado
 - [x] Design system estabelecido
 - [x] Mockups das abas operacionais finalizados
+- [x] **Refatoração do modelo de dados para consumir views separadas**
+- [x] **Medidas DAX ajustadas para uso correto da vw_gold_referencia_mtd**
 
 ### Em Desenvolvimento
 - [ ] Implementação do modelo semântico no Power BI
@@ -492,5 +712,3 @@ O dashboard entrega:
 - [ ] Validação das métricas com cenários reais
 - [ ] Ajustes visuais baseados em testes de usabilidade
 - [ ] Refatoração pós-entrega (limpeza, simplificação, organização)
-
----

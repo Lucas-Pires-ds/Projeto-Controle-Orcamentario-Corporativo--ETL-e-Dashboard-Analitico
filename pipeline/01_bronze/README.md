@@ -63,52 +63,26 @@ Dois scripts Python geram CSVs simulando dados de um sistema financeiro real:
 
 #### 01_geracao_das_dimensoes.py
 
-Gera as dimensões analíticas com problemas típicos de dados reais:
-```python
-# Exemplo: Centro de Custo com espaços extras e variações de case
-data_cc = {
-    'id_centro_custo': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-    'nome_centro_custo': [
-        "Administrativo", " Marketing", "Jurídico", "TI", "RH ", 
-        "FINANCEIRO", "Comercial/Vendas", "Operações", "  Facilities", "Projetos Especiais"
-    ]
-}
-```
+Gera as dimensões analíticas:
 
 **Dimensões geradas**:
-- `dim_centro_custo.csv`: 10 centros de custo
-- `dim_categoria.csv`: 50 categorias (5 por centro de custo, IDs 101-150)
-- `dim_fornecedores.csv`: 20 fornecedores
-- `dim_campanha_marketing.csv`: 4 campanhas sazonais
-
-**Problemas propositais inseridos**:
-- Espaços extras no início/fim de strings
-- Variações de capitalização (UPPER, lower, Mixed)
-- Um registro com uppercase total ("ALUGUEL/CONDOMÍNIO")
+- `dim_centro_custo.csv`: Centros de custo operacionais
+- `dim_categoria.csv`: Categorias de despesa por centro de custo
+- `dim_fornecedores.csv`: Cadastro de fornecedores
+- `dim_campanha_marketing.csv`: Campanhas de marketing
 
 #### 02_geracao_das_facts.py
 
 Gera as tabelas fato com granularidade temporal:
 
-**fact_orcamento (mensal)**:
-- Período: 2023-2024 (24 meses)
-- ~1.200 linhas
-- Valores base variam por centro de custo (RH maior, Marketing médio)
-- 0,5% dos registros com valores absurdos (20x o normal)
-- 2% dos meses removidos aleatoriamente (simula gaps no orçamento)
+**fact_orcamento**: 
+- Planejamento mensal de despesas por categoria e centro de custo
+- Período: 2023-2024
 
-**fact_lancamentos (diária)**:
+**fact_lancamentos**: 
+- Lançamentos financeiros diários
 - Período: 01/01/2023 a 31/12/2024
-- ~5.000 registros
-- Volume diário varia (mais em dias úteis, menos em finais de semana)
-- Sazonalidade simulada (Marketing intenso em maio, agosto, novembro, dezembro)
-- 13º salário em dezembro (RH)
-
-**Problemas propositais inseridos**:
-- 0,5% dos registros sem data (valor `None`)
-- 1% dos registros com centro de custo inválido (ID 999)
-- 1% dos valores negativos (sem flag de estorno)
-- Status de pagamento inconsistentes: "Pago", "Paga", "Aberto", "Pending", "PAGO"
+- Status de pagamento variados
 
 ### 2. Criação das Tabelas Staging
 
@@ -154,7 +128,6 @@ WITH (
 - `FIELDTERMINATOR = ','`: Delimitador de colunas
 - `ROWTERMINATOR = '\n'`: Delimitador de linhas
 
-
 ---
 
 ## 🎯 Decisões Técnicas
@@ -184,22 +157,32 @@ Esta decisão segue o princípio de separação de responsabilidades da arquitet
 - **Gold**: Agregação e métricas analíticas
 
 **Benefícios**:
-- Rastreabilidade: Sempre possível consultar o dado original sem alterações
-- Reprocessamento: Novas regras podem ser aplicadas sem reingestão
-- Diagnóstico: Problemas de origem ficam visíveis para análise
-
----
+- **Rastreabilidade**: Sempre possível consultar o dado original sem alterações
+- **Reprocessamento**: Novas regras podem ser aplicadas sem reingestão
+- **Diagnóstico**: Problemas de origem ficam visíveis para análise
+- **Flexibilidade**: Mudanças nas regras de negócio não exigem recarga dos dados
 
 ---
 
 ## 📌 Próxima Etapa
 
-Os dados brutos da camada Bronze são consumidos por **Views de transformação** que aplicam:
+Os dados brutos da camada Bronze são processados pela camada Silver, que aplica:
 
-- Conversão de tipos (`VARCHAR` → `INT`, `DECIMAL`, `DATE`)
-- Validações de integridade (datas nulas, IDs inválidos)
-- Limpeza de textos (`TRIM`, normalização de case)
-- Normalização de status de pagamento
+1. **Diagnóstico de Qualidade**
+   - Identificação de valores ausentes, inválidos ou inconsistentes
+   - Análise de integridade referencial
+   - Detecção de outliers e anomalias
+
+2. **Transformações**
+   - Conversão de tipos (`VARCHAR` → `INT`, `DECIMAL`, `DATE`)
+   - Limpeza de textos (`TRIM`, normalização de case)
+   - Padronização de valores categóricos
+   - Tratamento de dados problemáticos com flags de rastreamento
+
+3. **Modelagem Dimensional**
+   - Star Schema com integridade referencial garantida
+   - Dimensões conformed
+   - Fatos com granularidade adequada
 
 📖 **[Documentação da camada Silver](../02_silver/)**
 

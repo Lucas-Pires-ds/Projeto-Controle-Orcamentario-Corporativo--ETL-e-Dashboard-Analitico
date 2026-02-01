@@ -2,6 +2,15 @@
 ------------------------------------------------------- CARGA DE DADOS --------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------------------
 
+TRUNCATE TABLE dim_camp_marketing
+TRUNCATE TABLE dim_centro_custo
+TRUNCATE TABLE dim_fornecedores
+TRUNCATE TABLE dim_calendario
+TRUNCATE TABLE dim_categoria
+TRUNCATE TABLE fact_lancamentos
+TRUNCATE TABLE fact_orcamento
+
+
 -- dim_camp_marketing
 
 INSERT INTO dim_camp_marketing(

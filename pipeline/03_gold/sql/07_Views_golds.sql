@@ -294,141 +294,147 @@ FROM
 
 GO
 
-
--- GOLD LANCAMENTOS
-
-CREATE OR ALTER VIEW vw_gold_lancamentos AS
-
-WITH ACUMULADO_MENSAL AS (
-
-       SELECT
-              DATEFROMPARTS(YEAR(data_lancamento), MONTH(data_lancamento), 1) AS 'Mes_ref',
-              DAY(data_lancamento) AS Dia_do_mes,
-              id_centro_custo,
-              SUM(valor) AS 'Valor_do_dia'
-       FROM fact_lancamentos
-       GROUP BY
-              YEAR(data_lancamento),
-              MONTH(data_lancamento),
-              DAY(data_lancamento),
-              id_centro_custo
-),
-ACUMULADO_FINAL AS (
-       SELECT
-              Mes_ref,
-              Dia_do_mes,
-              id_centro_custo,
-              SUM(Valor_do_dia) OVER(
-                     PARTITION BY
-                            Mes_ref,
-                            id_centro_custo
-                     ORDER BY Dia_do_mes
-              ) AS 'Gasto_ate_dia'       
-       FROM ACUMULADO_MENSAL
-),
-MEDIANA AS (
-       SELECT DISTINCT
-              Dia_do_mes,
-              id_centro_custo,
-              PERCENTILE_CONT(0.5)
-                     WITHIN GROUP (ORDER BY Gasto_ate_dia) OVER(
-                                                 PARTITION BY 
-                                                        Dia_do_mes,
-                                                        id_centro_custo) AS 'Mediana_gasto_ate_dia'
-       FROM ACUMULADO_FINAL
-       WHERE Mes_ref < DATEFROMPARTS(2024, 12, 1)       -- Exclui o mês atual (dezembro/2024) do cálculo da mediana histórica para evitar viés de dados incompletos.
-       ),                                                -- Em produção o ideal seria usar Mes_ref < DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)         
-MEDIANA_TOTAL AS (
-       SELECT
-              *,
-              MAX(Mediana_gasto_ate_dia) OVER(
-                            PARTITION BY id_centro_custo
-              ) AS MEDIANA_TOTAL
-       FROM MEDIANA
-)                                                       
-
-SELECT 
-       YEAR(FL.data_lancamento) AS 'Ano',
-       MONTH(FL.data_lancamento) AS 'Mes',
-       (YEAR(FL.data_lancamento) * 100) + MONTH(FL.data_lancamento) AS 'Ano_mes',
-       FL.id_lancamento AS 'ID_Lancamento',
-       FL.data_lancamento AS 'Data_lancamento',
-       FL.id_centro_custo AS 'ID_Centro_de_custo',
-       CC.nome_cc AS 'Centro_de_custo',
-       FL.id_categoria AS 'ID_Categoria',
-       CAT.nome_categoria AS 'Categoria',
-       FL.id_fornecedor AS 'ID_Fornecedor',
-       DF.nome_forn AS 'Fornecedor',
-       FL.id_campanha AS 'ID_Campanha',
-       COALESCE(MKT.nome_campanha, 'Sem_campanha') AS 'Campanha',
-       FL.valor AS 'Valor',
-       SUM(valor) OVER(
-              PARTITION BY 
-                     FL.id_centro_custo,
-                     FL.id_categoria,
-                     FL.id_fornecedor,
-                     FL.id_campanha,
-                     YEAR(FL.data_lancamento),
-                     MONTH(FL.data_lancamento)
-              ORDER BY FL.data_lancamento
-       ) AS 'Gasto_MTD',
-       NULLIF(Mediana_gasto_ate_dia, 0) AS 'Mediana_MTD_CC',
-       NULLIF(MEDIANA_TOTAL, 0) AS 'Mediana_total',
-       NULLIF(Mediana_gasto_ate_dia, 0) / NULLIF(MEDIANA_TOTAL, 0) AS 'Participacao_mediana',
-       SUM(valor) OVER(
-              PARTITION BY 
-                     FL.id_centro_custo,
-                     FL.id_categoria,
-                     FL.id_fornecedor,
-                     FL.id_campanha,
-                     YEAR(FL.data_lancamento),
-                     MONTH(FL.data_lancamento)
-              ORDER BY FL.data_lancamento
-       )
-       /
-       NULLIF(Mediana_gasto_ate_dia, 0) AS 'Perc_desvio_mediana',
-       CASE 
-              WHEN SUM(valor) OVER(
-              PARTITION BY 
-                     FL.id_centro_custo,
-                     FL.id_categoria,
-                     FL.id_fornecedor,
-                     FL.id_campanha,
-                     YEAR(FL.data_lancamento),
-                     MONTH(FL.data_lancamento)
-       ) 
-       / 
-       NULLIF(Mediana_gasto_ate_dia, 0) <= 0.8
-              THEN 'Abaixo_do_normal'
-              WHEN SUM(valor) OVER(
-              PARTITION BY 
-                     FL.id_centro_custo,
-                     FL.id_categoria,
-                     FL.id_fornecedor,
-                     FL.id_campanha,
-                     YEAR(FL.data_lancamento),
-                     MONTH(FL.data_lancamento)
-       ) 
-       /
-       NULLIF(Mediana_gasto_ate_dia, 0) BETWEEN 0.81 AND 1
-              THEN 'Dentro_do_normal'
-              ELSE 'Acima_do_normal'
-              END AS 'Flag_alerta_gasto' ,
-       FL.valor_original AS 'Valor_original',      
-       REPLACE(FL.status_pagamento,'Aberto', 'Pendente') AS 'Status_pagamento',
-       CASE 
-              WHEN FL.id_centro_custo = -1 THEN 'Sim' ELSE 'Nao' END AS 'Flag_centro_custo_coringa'
-FROM fact_lancamentos FL  
-       LEFT JOIN dim_centro_custo CC
-              ON CC.id_cc = FL.id_centro_custo
-       LEFT JOIN dim_categoria CAT  
-              ON CAT.id_categoria = FL.id_categoria
-       LEFT JOIN dim_fornecedores DF 
-              ON DF.id_forn = FL.id_fornecedor
-       LEFT JOIN dim_camp_marketing MKT
-              ON MKT.id_camp = FL.id_campanha
-       LEFT JOIN MEDIANA_TOTAL MED 
-              ON MED.Dia_do_mes = DAY(FL.data_lancamento)
-              AND MED.id_centro_custo = FL.id_centro_custo
+--  VW_GOLD_LANCAMENTOS
 
 GO
+
+CREATE OR  ALTER VIEW vw_gold_lancamentos AS 
+SELECT 
+       FL.id_lancamento,
+       FL.data_lancamento,
+       CC.id_cc AS 'id_centro_de_custo',
+       CC.nome_cc AS 'centro_de_custo',
+       CAT.id_categoria AS 'id_categoria',
+       CAT.nome_categoria AS 'categoria',
+       DF.id_forn AS 'id_fornecedor',
+       DF.nome_forn AS 'fornecedor',
+       MKT.id_camp AS 'id_campanha',
+       MKT.nome_campanha AS 'campanha_de_marketing',
+       FL.valor,
+       FL.valor_original,
+
+       SUM(FL.valor) OVER(
+                     PARTITION BY 
+                            YEAR(FL.data_lancamento),
+                            MONTH(data_lancamento),
+                            FL.id_centro_custo,
+                            FL.id_categoria,
+                            FL.id_fornecedor,
+                            FL.id_campanha
+                     ORDER BY 
+                            FL.data_lancamento ASC,
+                            FL.id_lancamento
+                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+       ) AS 'gasto_MTD',
+
+       REPLACE(FL.status_pagamento, 'Aberto', 'Pendente') AS 'status_pagamento'
+FROM 
+       fact_lancamentos FL  
+LEFT JOIN 
+       dim_centro_custo CC
+              ON CC.id_cc = FL.id_centro_custo
+LEFT JOIN 
+       dim_categoria CAT  
+              ON CAT.id_categoria = FL.id_categoria
+LEFT JOIN 
+       dim_fornecedores DF 
+              ON DF.id_forn = FL.id_fornecedor
+LEFT JOIN 
+       dim_camp_marketing MKT 
+              ON MKT.id_camp = FL.id_campanha
+
+-- VW_GOLD_REFERENCIA_MTD
+
+GO
+
+CREATE OR ALTER VIEW vw_gold_referencia_mtd AS
+
+WITH FACT_DIARIA AS (
+       SELECT
+              data_lancamento,
+              id_centro_custo,
+              id_categoria,
+              SUM(valor) AS 'total_do_dia'
+       FROM fact_lancamentos
+       GROUP BY 
+              data_lancamento,
+              id_centro_custo,
+              id_categoria
+       
+),
+LISTA_CC_CAT AS (
+       SELECT DISTINCT 
+              id_centro_custo,
+              id_categoria
+       FROM fact_lancamentos
+),
+BASE_CALENDARIO AS (
+       SELECT
+              CAL.ano,
+              CAL.mes,
+              CAL.dia,
+              CAL.[data] AS 'data_lancamento',
+              DATEFROMPARTS(CAL.ano, CAL.mes, 1) AS 'mes_ref',
+              L.id_centro_custo,
+              L.id_categoria
+       FROM dim_calendario CAL 
+       CROSS JOIN LISTA_CC_CAT L  
+
+),
+HISTORICO AS (
+       SELECT 
+              BC.*,
+              COALESCE(FD.total_do_dia, 0) AS 'total_do_dia'
+       FROM BASE_CALENDARIO BC  
+       LEFT JOIN FACT_DIARIA FD  
+              ON FD.data_lancamento = BC.data_lancamento
+              AND FD.id_centro_custo = BC.id_centro_custo
+              AND FD.id_categoria = BC.id_categoria
+),
+ACUMULADOS AS (
+       SELECT
+       *,
+       SUM(total_do_dia) OVER(
+                     PARTITION BY
+                            ano,
+                            mes,
+                            id_centro_custo,
+                            id_categoria
+                     ORDER BY
+                            data_lancamento
+       ) AS 'gasto_MTD',
+       SUM(total_do_dia) OVER(
+                     PARTITION BY
+                            ano,
+                            mes,
+                            id_centro_custo,
+                            id_categoria
+       ) AS 'total_do_mes' 
+FROM HISTORICO),
+FINAL AS (
+       SELECT 
+              *,
+              gasto_MTD / NULLIF(total_do_mes,0) AS 'perc_gasto_mes'
+       FROM ACUMULADOS
+       WHERE data_lancamento < DATEFROMPARTS(2024, 11, 1)
+)
+SELECT DISTINCT
+       dia,
+       id_centro_custo,
+       id_categoria,
+       PERCENTILE_CONT(0.5)
+              WITHIN GROUP (ORDER BY perc_gasto_mes) OVER(
+                            PARTITION BY 
+                                   dia,
+                                   id_centro_custo,
+                                   id_categoria
+              ) AS 'peso_do_dia',
+       PERCENTILE_CONT(0.5)
+              WITHIN GROUP (ORDER BY gasto_MTD) OVER(
+                            PARTITION BY 
+                                   dia,
+                                   id_centro_custo,
+                                   id_categoria
+              ) AS 'valor_mediano_dia'
+FROM FINAL
+

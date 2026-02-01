@@ -10,10 +10,11 @@ A camada Gold é responsável por **preparar dados para consumo analítico**, cr
 
 ## 🎯 Características
 
-- 3 views independentes com responsabilidades bem definidas
-- Métricas avançadas pré-calculadas (YTD, MoM, YoY)
+- 4 views independentes com responsabilidades bem definidas
+- Métricas avançadas pré-calculadas (YTD, MoM, YoY, MTD)
 - Proteção contra erros comuns (divisão por zero, nulos)
 - Flags de anomalias e valores atípicos
+- Referências históricas para análise MTD
 - Cruzamento Orçado vs Realizado realizado no Power BI
 
 ---
@@ -115,46 +116,84 @@ ORDER BY Realizado DESC
 
 ---
 
-
 ### 📄 vw_gold_lancamentos
 
-**Propósito**: Base detalhada auditável com **alertas preventivos de gasto** baseados em benchmark histórico
+**Propósito**: Base transacional agregada diariamente, pronta para somatórios e visualizações no Power BI
 
-**Granularidade**: Transação (diária)
+**Granularidade**: **Diária** por centro de custo, categoria, fornecedor e campanha
 
-**Campos principais**:
-- Ano, Mês, Ano_mes, Data do lançamento
+**Decisão arquitetural crítica:**
+
+A view anterior (`vw_gold_lancamentos`) foi **dividida em duas views especializadas**:
+
+1. **`vw_gold_lancamentos`** → Agregação diária para análise de gastos realizados
+2. **`vw_gold_referencia_mtd`** → Referências históricas para comparação MTD
+
+**Motivação da separação:**
+
+A versão original misturava duas responsabilidades incompatíveis:
+- Valores somáveis para análise de totais (necessário para gráficos e KPIs)
+- Benchmarks históricos calculados por mediana (não somáveis)
+
+**Problema identificado:**
+
+Quando a view única era consumida no Power BI, as **medianas históricas eram somadas incorretamente** ao agregar múltiplos centros de custo ou categorias, gerando valores distorcidos.
+
+**Solução:**
+
+Separar as views permite que cada uma tenha **a granularidade correta para seu propósito**:
+- `vw_gold_lancamentos` → valores agregados somáveis
+- `vw_gold_referencia_mtd` → benchmarks não somáveis, usados apenas para referência visual
+
+---
+
+**Campos principais** (`vw_gold_lancamentos`):
+- Dimensões: Ano, Mês, Dia, Data do lançamento
 - Centro de custo, Categoria, Fornecedor, Campanha (IDs e nomes)
-- **Valor** e **Valor_original**
-- **Gasto_MTD**: Acumulado mensal até a data do lançamento
-- **Mediana_MTD_CC**: Benchmark histórico (mediana dos gastos acumulados até o mesmo dia em meses anteriores)
-- **Flag_alerta_gasto**: Indicador de ritmo de gasto (Abaixo_do_normal / Dentro_do_normal / Acima_do_normal)
+- **Total_do_dia**: Soma dos lançamentos do dia (agregado)
+- **Gasto_MTD**: Acumulado mensal até a data
 - Status de pagamento
 - Flag de centro de custo coringa
 
-**Lógica de Alerta Preventivo:**
-
-A view implementa um sistema de alerta baseado em **mediana histórica** que permite identificar desvios no ritmo de gasto **antes do fechamento do mês**.
-```sql
--- Exemplo: Se hoje é dia 15 e o gasto acumulado já é 120% da mediana histórica
--- do dia 15, isso indica ritmo acima do normal
-Flag_alerta_gasto = 
-  CASE 
-    WHEN Gasto_MTD / Mediana_MTD_CC <= 0.8  THEN 'Abaixo_do_normal'
-    WHEN Gasto_MTD / Mediana_MTD_CC <= 1.0  THEN 'Dentro_do_normal'
-    ELSE 'Acima_do_normal'
-  END
-```
-
-**Decisão técnica - Uso de Mediana:**
-
-Mediana foi escolhida ao invés de média por ser **robusta contra outliers**. Meses com gastos excepcionais (ex: compras sazonais, projetos pontuais) não distorcem a linha de referência, resultando em alertas mais confiáveis.
-
-**Características**:
+**Características técnicas:**
+- Agregação diária através da CTE `FACT_DIARIA`
 - Enriquecimento dimensional completo via LEFT JOINs
-- Nenhuma agregação final (permite drill-down total)
-- Cálculos de acumulado via window functions
+- Cálculo de MTD via window function ordenada por data
 - Proteção contra divisão por zero (`NULLIF`)
+- **Granularidade ideal para somatórios no Power BI**
+
+**Estrutura SQL simplificada:**
+```sql
+WITH FACT_DIARIA AS (
+    SELECT
+        data_lancamento,
+        id_centro_custo,
+        id_categoria,
+        id_fornecedor,
+        id_campanha,
+        SUM(valor) AS 'total_do_dia'
+    FROM fact_lancamentos
+    GROUP BY 
+        data_lancamento,
+        id_centro_custo,
+        id_categoria,
+        id_fornecedor,
+        id_campanha
+)
+SELECT
+    YEAR(data_lancamento) AS 'Ano',
+    MONTH(data_lancamento) AS 'Mes',
+    DAY(data_lancamento) AS 'Dia',
+    data_lancamento,
+    -- Dimensões enriquecidas
+    CC.id_cc AS 'id_centro_de_custo',
+    CC.nome_cc AS 'centro_de_custo',
+    -- ... outras dimensões
+    total_do_dia,
+    SUM(total_do_dia) OVER(...) AS 'gasto_MTD'
+FROM FACT_DIARIA FD
+LEFT JOIN dim_centro_custo CC ON ...
+```
 
 **Exemplo de uso**:
 ```sql
@@ -162,22 +201,150 @@ SELECT
     Data_lancamento,
     Centro_de_custo,
     Categoria,
-    Gasto_MTD,
-    Mediana_MTD_CC,
-    Flag_alerta_gasto
+    Total_do_dia,
+    Gasto_MTD
 FROM vw_gold_lancamentos
-WHERE Ano = 2024 AND Mes = 12
-  AND Flag_alerta_gasto = 'Acima_do_normal'
+WHERE Ano = 2024 AND Mes = 11
 ORDER BY Data_lancamento DESC
 ```
+
+**Uso no Power BI:**
+```dax
+Total Realizado MTD = SUM(vw_gold_lancamentos[Gasto_MTD])
+Total Gasto Diário = SUM(vw_gold_lancamentos[Total_do_dia])
+```
+
+---
+
+### 📊 vw_gold_referencia_mtd
+
+**Propósito**: Fornecer referências históricas de comportamento de gastos para análise comparativa MTD
+
+**Granularidade**: **Dia do mês** por centro de custo e categoria
+
+**Motivação da criação:**
+
+Esta view foi separada da `vw_gold_lancamentos` para resolver um problema fundamental:
+
+> **Métricas estatísticas de referência (mediana) não podem ser somadas.**
+
+No Power BI, ao filtrar múltiplos centros de custo ou categorias, a engine tentava somar as medianas históricas, resultando em valores sem significado estatístico.
+
+**Solução arquitetural:**
+
+Criar uma view dedicada onde:
+- Cada linha representa **um dia do mês** (1 a 31)
+- Métricas são calculadas **apenas para referência visual**
+- **Não deve ser usada em somatórios ou agregações no BI**
+- Relacionamento com outras tabelas é **apenas para filtros contextuais**
+
+---
+
+**Campos principais**:
+- **dia**: Dia do mês (1 a 31)
+- **id_centro_custo**: Identificador do centro de custo
+- **id_categoria**: Identificador da categoria
+- **peso_do_dia**: Percentual acumulado esperado até este dia (mediana histórica)
+- **valor_mediano_dia**: Valor mediano de gasto MTD até este dia (mediana histórica em R$)
+
+**Lógica de construção:**
+
+A view implementa o processo descrito no relatório técnico MTD:
+
+1. **Agregação diária** (CTE `FACT_DIARIA`)
+2. **Calendário completo** com CROSS JOIN (CTE `BASE_CALENDARIO`)
+3. **Cálculo de métricas mensais** (CTE `METRICAS`):
+   - `gasto_MTD`: Acumulado até cada dia
+   - `total_do_mes`: Total do mês completo
+4. **Normalização** (CTE `FINAL`):
+   - `perc_gasto_mes = gasto_MTD / total_do_mes`
+   - Aplicação do **corte histórico** (`WHERE data_lancamento < '2024-11-01'`)
+5. **Cálculo das medianas** (SELECT final):
+   - Mediana do percentual acumulado → `peso_do_dia`
+   - Mediana do valor MTD → `valor_mediano_dia`
+
+**Estrutura SQL simplificada:**
+```sql
+WITH FACT_DIARIA AS (
+    -- Agregação diária
+),
+LISTA_CC_CAT AS (
+    -- Lista de combinações CC + CAT
+),
+BASE_CALENDARIO AS (
+    -- Calendário completo via CROSS JOIN
+),
+HISTORICO AS (
+    -- Join calendário + fatos
+),
+METRICAS AS (
+    -- Cálculo de MTD e total_do_mes
+),
+FINAL AS (
+    -- Normalização percentual + corte histórico
+    SELECT *,
+        gasto_MTD / NULLIF(total_do_mes,0) AS 'perc_gasto_mes'
+    FROM METRICAS
+    WHERE data_lancamento < DATEFROMPARTS(2024, 11, 1)
+)
+SELECT DISTINCT
+    dia,
+    id_centro_custo,
+    id_categoria,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY perc_gasto_mes) 
+        OVER(PARTITION BY dia, id_centro_custo, id_categoria) AS 'peso_do_dia',
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY gasto_MTD) 
+        OVER(PARTITION BY dia, id_centro_custo, id_categoria) AS 'valor_mediano_dia'
+FROM FINAL
+```
+
+**Decisões estatísticas:**
+
+- **Uso de mediana (PERCENTILE_CONT 0.5)**: Robusta contra outliers de valor absoluto
+- **Normalização prévia**: Elimina impacto de meses grandes vs pequenos
+- **Corte histórico aplicado após métricas**: Evita inflação artificial de zeros
+
+**Exemplo de uso** (apenas para referência visual):
+```sql
+SELECT 
+    dia,
+    Centro_de_custo,
+    Categoria,
+    peso_do_dia,
+    valor_mediano_dia
+FROM vw_gold_referencia_mtd
+WHERE id_centro_custo = 5 
+  AND id_categoria = 10
+ORDER BY dia
+```
+
+**Uso no Power BI** (medida DAX):
+```dax
+Orçado Ideal MTD = 
+VAR DiaAtual = DAY(MAX(dim_calendario[data]))
+VAR PesoHistorico = 
+    CALCULATE(
+        MAX(vw_gold_referencia_mtd[peso_do_dia]),
+        vw_gold_referencia_mtd[dia] = DiaAtual
+    )
+VAR OrcamentoMensal = SUM(vw_gold_orcamento[Orcado_mensal])
+RETURN OrcamentoMensal * PesoHistorico
+```
+
+**IMPORTANTE — Restrições de uso:**
+
+❌ **NÃO usar** `SUM(vw_gold_referencia_mtd[valor_mediano_dia])` — sem significado estatístico  
+❌ **NÃO usar** para cálculos de totais ou agregações  
+✅ **Usar** apenas para linhas de referência em gráficos  
+✅ **Usar** para cálculo de orçado ideal via contexto de filtro
 
 ---
 
 ## 🎯 Decisões de Arquitetura
 
-### Separação em 3 Views Independentes
+### Separação em 4 Views Independentes
 
-A camada Gold foi dividida em views especializadas (Orçamento, Realizado e Lançamentos) ao invés de uma view consolidada.
+A camada Gold foi dividida em views especializadas (Orçamento, Realizado, Lançamentos e Referência MTD) ao invés de uma view consolidada.
 
 **Justificativa**:
 
@@ -185,8 +352,9 @@ A camada Gold foi dividida em views especializadas (Orçamento, Realizado e Lan�
 - Evita redundância de dados pré-calculados
 - Facilita manutenção (mudanças em uma view não afetam outras)
 - Permite consumo flexível no Power BI (analista decide como cruzar)
+- **Separação de métricas somáveis vs não-somáveis**
 
-**Custo aceito**: Power BI precisa relacionar as views. Esse custo é baixo e compensa pela clareza organizacional.
+**Custo aceito**: Power BI precisa relacionar as views. Esse custo é baixo e compensa pela clareza organizacional e correção técnica.
 
 ### Cruzamento Orçado vs Realizado no Power BI
 
@@ -200,6 +368,23 @@ O cruzamento entre orçamento e realizado não é feito na camada Gold.
 - Regras de cruzamento podem mudar sem reprocessar dados
 
 **Implementação no Power BI**: Relacionamentos entre tabelas via campos de granularidade comum (Ano, Mês, Centro de custo, Categoria).
+
+### Separação de Lançamentos em Duas Views
+
+**Decisão crítica**: Separar valores transacionais (somáveis) de benchmarks estatísticos (não-somáveis).
+
+**Problema resolvido**:
+
+Na arquitetura anterior, a view única causava:
+- ❌ Somatórios incorretos de medianas no Power BI
+- ❌ Valores distorcidos ao aplicar filtros de múltiplos CCs/categorias
+- ❌ Confusão entre granularidades (transação vs referência)
+
+**Arquitetura atual**:
+
+- ✅ `vw_gold_lancamentos` → Granularidade diária, valores somáveis
+- ✅ `vw_gold_referencia_mtd` → Granularidade dia do mês, benchmarks de referência
+- ✅ Uso correto de cada view no Power BI conforme propósito
 
 ---
 
@@ -267,22 +452,48 @@ Realizado / NULLIF(valor_mesmo_mes_ano_anterior, 0) - 1
 
 ---
 
-### Monitoramento de Ritmo de Gasto (MTD vs Mediana)
+### MTD (Month-to-Date)
 
-Diferente das visões mensais, esta métrica permite identificar desvios de comportamento **durante** o mês vigente.
-
-**Lógica de Cálculo**:
-1. **Acumulado Diário**: É calculado o gasto acumulado de cada dia em relação ao início do seu respectivo mês.
-2. **Cálculo da Mediana**:
+Acumulado diário dentro do mês corrente:
 ```sql
-PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY Gasto_ate_dia) 
-OVER (PARTITION BY Dia_do_mes, id_centro_custo)
+SUM(total_do_dia) OVER(
+    PARTITION BY ano, mes, id_centro_custo, id_categoria, id_fornecedor, id_campanha
+    ORDER BY data_lancamento
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+)
 ```
-3. **Comparação**: O gasto atual (MTD) é dividido pela mediana histórica do Centro de Custo para aquele dia específico.
 
-**Justificativa**: A média simples poderia ser distorcida por meses de gastos excepcionais. A **mediana** oferece um "norte" mais realista do que é um comportamento padrão de consumo para o período.
+**Partição**: Por mês e combinação de dimensões  
+**Ordenação**: Por data de lançamento  
+**Janela**: Do início do mês até a linha atual
+
+**Uso**: Permite acompanhar evolução diária de gastos dentro do período mensal.
+
 ---
 
+### Referências Históricas MTD
+
+**Peso do Dia (Percentual Normalizado)**:
+```sql
+PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY perc_gasto_mes) 
+    OVER(PARTITION BY dia, id_centro_custo, id_categoria)
+```
+
+**Onde**: `perc_gasto_mes = gasto_MTD / total_do_mes`
+
+**Interpretação**: Para o dia X, qual é o percentual mediano do mês que costuma estar gasto até este dia.
+
+---
+
+**Valor Mediano do Dia (Referência Absoluta)**:
+```sql
+PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY gasto_MTD) 
+    OVER(PARTITION BY dia, id_centro_custo, id_categoria)
+```
+
+**Interpretação**: Para o dia X, qual é o valor mediano (R$) de gasto MTD até este dia em meses anteriores.
+
+---
 
 ### Pesos Relativos
 
@@ -360,6 +571,15 @@ RIGHT JOIN (SELECT DISTINCT ano, mes FROM dim_calendario) CAL
 **Efeito**: Meses sem lançamentos aparecem com `NULL` (tratado como 0 no BI)  
 **Importância**: LAG(1) e LAG(12) sempre comparam meses consecutivos/equivalentes
 
+### Corte Histórico Correto
+
+Aplicado **após** o cálculo das métricas mensais (CTE `FINAL`):
+```sql
+WHERE data_lancamento < DATEFROMPARTS(2024, 11, 1)
+```
+
+**Justificativa**: Evita que meses futuros apareçam com zero artificial, distorcendo as medianas históricas.
+
 ---
 
 ## 📌 Resultado Final
@@ -371,6 +591,7 @@ As views Gold entregam:
 - ✅ Proteções contra erros comuns (divisão por zero, nulos)
 - ✅ Flags de qualidade e anomalias
 - ✅ Rastreabilidade mantida (flags de centro de custo coringa)
+- ✅ **Separação correta entre valores somáveis e benchmarks estatísticos**
 
 **Métricas disponíveis**:
 - 2 métricas básicas (Orçado, Realizado)
@@ -379,8 +600,37 @@ As views Gold entregam:
 - 4 pesos relativos (centro de custo e categoria, para orçado e realizado)
 - 2 médias históricas
 - 2 flags de anomalia
+- 2 referências históricas MTD (peso do dia, valor mediano)
+- 1 métrica MTD (gasto acumulado diário)
 
-**Total**: 16+ métricas pré-calculadas
+**Total**: 19+ métricas pré-calculadas
+
+---
+
+## 🔄 Evolução da Arquitetura
+
+### v1.0 → v2.0: Separação da View de Lançamentos
+
+**Problema identificado:**
+
+Na versão inicial, `vw_gold_lancamentos` continha:
+- Valores transacionais diários (somáveis)
+- Mediana histórica MTD (não-somável)
+
+Ao consumir no Power BI, as medianas eram **somadas incorretamente** ao agregar múltiplos centros de custo.
+
+**Solução implementada:**
+
+Criação de `vw_gold_referencia_mtd` como view independente:
+- Granularidade: dia do mês (1-31)
+- Propósito: apenas referência visual
+- Uso: linha de comparação em gráficos, cálculo de orçado ideal
+
+**Impacto:**
+
+- ✅ Métricas corretas no Power BI
+- ✅ Arquitetura mais clara e manutenível
+- ✅ Cada view com responsabilidade única
 
 ---
 
@@ -389,6 +639,8 @@ As views Gold entregam:
 As views Gold são consumidas no **Power BI**, onde:
 
 - Relacionamentos entre views são criados no modelo de dados
+- `vw_gold_lancamentos` → usada para somatórios e KPIs
+- `vw_gold_referencia_mtd` → usada para linhas de referência e cálculo de orçado ideal
 - Cruzamento Orçado vs Realizado é realizado via relacionamentos ou medidas DAX
 - Visualizações e KPIs são construídos sobre esta base confiável
 - Filtros e slicers permitem análise interativa
