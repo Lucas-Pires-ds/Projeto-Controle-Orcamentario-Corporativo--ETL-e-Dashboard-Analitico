@@ -2,6 +2,15 @@
 ------------------------------------------------------- CARGA DE DADOS --------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------------------
 
+TRUNCATE TABLE dim_camp_marketing
+TRUNCATE TABLE dim_centro_custo
+TRUNCATE TABLE dim_fornecedores
+TRUNCATE TABLE dim_calendario
+TRUNCATE TABLE dim_categoria
+TRUNCATE TABLE fact_lancamentos
+TRUNCATE TABLE fact_orcamento
+
+
 -- dim_camp_marketing
 
 INSERT INTO dim_camp_marketing(
@@ -68,6 +77,7 @@ INSERT INTO dim_calendario(
     dia_util,
     ano,
     mes,
+    dia,
     nome_do_mes,
     mes_ano,
     ano_mes,
@@ -86,9 +96,10 @@ DATENAME(WEEKDAY, @DATA),
 CASE WHEN DATENAME(WEEKDAY,@DATA) IN ('Sábado', 'Domingo') THEN 'nao' ELSE 'sim' END,
 YEAR(@DATA),
 MONTH(@DATA),
+DAY(@DATA),
 DATENAME(MONTH, @DATA),
 FORMAT(@DATA, 'MMM/yy'),
-CAST(FORMAT(@DATA, 'yyyyMM') AS INT),
+CAST((YEAR(@DATA) * 100) + MONTH(@DATA) AS INT),
 CASE WHEN MONTH(@DATA) BETWEEN 1 AND 6 THEN 1 ELSE 2 END,
 CONCAT(CASE WHEN MONTH(@DATA) BETWEEN 1 AND 6 THEN 1 ELSE 2 END,'/',YEAR(@DATA)),
 CAST(CONCAT(YEAR(@DATA),CASE WHEN MONTH(@DATA) BETWEEN 1 AND 6 THEN 1 ELSE 2 END ) AS INT),
@@ -123,6 +134,16 @@ END) AS INT)
 SET @DATA +=1
 END
 
+-- dim_mes
+
+INSERT INTO dim_mes (ano_mes, ano, mes, primeiro_dia, ultimo_dia)
+SELECT DISTINCT
+    YEAR(data) * 100 + MONTH(data) AS id_mes,
+    YEAR(data) AS ano,
+    MONTH(data) AS mes,
+    DATEFROMPARTS(YEAR(data), MONTH(data), 1) AS primeiro_dia,
+    EOMONTH(data) AS ultimo_dia
+FROM dim_calendario
 
 
 -- fact_lancamentos
